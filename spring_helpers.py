@@ -203,7 +203,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
             Hs = Nt * d if end_type == "Closed and ground" else (Nt + 1) * d
             Hs_mm = Hs * MM_PER_IN
 
-            if Hs_mm > comp_to_mm:
+            if Hs_mm + margin_mm > comp_to_mm:
                 rejects["solid_too_tall"] += 1
                 continue
 

@@ -173,8 +173,6 @@ if comp_from_mm <= comp_to_mm:
     st.error("'Compress From' must be longer than 'Compress To'.")
     st.stop()
 
-effective_comp_to = comp_to_mm - margin_mm
-
 if _implied_rate_placeholder is not None:
     v_mps = target_fps / FPS_PER_MPS
     E_needed_j = 0.5 * dart_kg * v_mps**2 / efficiency
@@ -203,8 +201,8 @@ candidates, rejects = find_candidates(
     efficiency=efficiency,
     dart_kg=dart_kg,
     comp_from_mm=comp_from_mm,
-    comp_to_mm=effective_comp_to,
-    margin_mm=0.0,
+    comp_to_mm=comp_to_mm,
+    margin_mm=margin_mm,
     od_mode="fixed" if od_mode == "Fixed OD" else "range",
     od_fixed=od_fixed if od_mode == "Fixed OD" else None,
     od_min=od_min if od_mode != "Fixed OD" else None,
