@@ -37,8 +37,9 @@ SPRING_PRESETS = {
     "SFX6":   (2.0,  11.5,   141.5, 31.0, "Closed and ground"),
     "SFX7":   (1.9,  12.625, 143.0, 30.3, "Closed and ground"),
     "SFX8":   (1.9,  15.125, 144.5, 30.4, "Closed and ground"),
-    "5kg LS": (2.0,  11.5,   145.0, 30.2, "Closed and ground"),
-    "8kg LS": (2.3,  12.25,  141.0, 30.5, "Closed and ground"),
+    "5kg LS":  (2.0,  11.5,   145.0, 30.2, "Closed not ground"),
+    "8kg LS":  (2.3,  12.25,  141.0, 30.5, "Closed not ground"),
+    "OOD 788": (2.0,  32.5,   255.0, 24.6, "Closed not ground"),
 }
 SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
 
@@ -93,6 +94,19 @@ def linked(label, key, lo, hi, default, step, fmt="%.3f", container=None,
     return st.session_state[nk]
 
 
+# ── End-type geometry (dead_coils, all_ground, inactive_length_factor) ──
+# dead_coils:  added to Na to get Nt
+# all_ground:  True → Hs = Nt·d (flat ends); False → Hs = (Nt+1)·d
+# inact_d:     pitch = (Lf − inact_d·d) / Na
+END_TYPE_PARAMS = {
+    "Closed and ground":    (2, True,  2.0),
+    "Closed not ground":    (2, False, 3.0),
+    "Open":                 (0, False, 1.0),
+    "One closed, one open": (1, False, 1.5),
+}
+END_TYPE_NAMES = list(END_TYPE_PARAMS.keys())
+
+
 # ── Spring physics ──
 
 def compute_spring(d, OD, Na, Lf, end_type, wire_type):
@@ -103,8 +117,9 @@ def compute_spring(d, OD, Na, Lf, end_type, wire_type):
     Kw = (4 * C - 1) / (4 * C - 4) + 0.615 / C
     k = (G * d**4) / (8 * D**3 * Na)
 
-    Nt = Na + 2
-    Hs = Nt * d if end_type == "Closed and ground" else (Nt + 1) * d
+    _dead, _ground, _inact = END_TYPE_PARAMS[end_type]
+    Nt = Na + _dead
+    Hs = Nt * d if _ground else (Nt + 1) * d
 
     Sut = A / d**m
     tau_allow = 0.45 * Sut
@@ -120,7 +135,7 @@ def compute_spring(d, OD, Na, Lf, end_type, wire_type):
     util_solid = tau_solid / tau_allow
 
     ID = OD - 2 * d
-    pitch = (Lf - 2 * d) / Na if end_type == "Closed and ground" else (Lf - 3 * d) / Na
+    pitch = (Lf - _inact * d) / Na
     coils_per_inch = 1.0 / pitch if pitch > 0 else 0.0
     sp_between = pitch - d
     weight_lbf = (math.pi * D * Nt) * (math.pi * (d / 2) ** 2) * 0.284
@@ -147,6 +162,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
     dicts and reject_reasons tallies why designs were rejected.
     """
     A, m, G = WIRE_MATERIALS[wire_type]
+    _dead, _ground, _inact = END_TYPE_PARAMS[end_type]
     comp_from_in = comp_from_mm / MM_PER_IN
     comp_to_in = comp_to_mm / MM_PER_IN
 
@@ -199,8 +215,8 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
 
             k_actual = (G * d**4) / (8 * D**3 * Na)
 
-            Nt = Na + 2
-            Hs = Nt * d if end_type == "Closed and ground" else (Nt + 1) * d
+            Nt = Na + _dead
+            Hs = Nt * d if _ground else (Nt + 1) * d
             Hs_mm = Hs * MM_PER_IN
 
             if Hs_mm + margin_mm > comp_to_mm:

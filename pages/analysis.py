@@ -6,6 +6,7 @@ from spring_helpers import (
     WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES, MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
     SPRING_PRESETS, SPRING_PRESET_NAMES,
+    END_TYPE_NAMES,
     compute_spring, linked, qp,
 )
 
@@ -31,6 +32,7 @@ if spring_preset != "Custom":
     st.session_state["lf_s"] = _sp_lf_in
     st.session_state["na_n"] = _sp[1]
     st.session_state["na_s"] = _sp[1]
+    _sp_end = _sp[4]
 
 p_left, p_mid, p_right = st.columns(3)
 
@@ -59,11 +61,13 @@ with p_mid:
                 help="Coils that deflect under load. Excludes the closed end coils.")
 
 with p_right:
-    END_TYPES = ["Closed and ground", "Closed not ground"]
-    _end_def = st.query_params.get("end", END_TYPES[0])
-    _end_idx = END_TYPES.index(_end_def) if _end_def in END_TYPES else 0
+    if spring_preset != "Custom":
+        _end_def = _sp_end
+    else:
+        _end_def = st.query_params.get("end", END_TYPE_NAMES[0])
+    _end_idx = END_TYPE_NAMES.index(_end_def) if _end_def in END_TYPE_NAMES else 0
     st.markdown("**End Type**")
-    end_type = st.selectbox("End Type", END_TYPES, index=_end_idx,
+    end_type = st.selectbox("End Type", END_TYPE_NAMES, index=_end_idx,
                             label_visibility="collapsed",
                             help="'Closed and ground' ends are flat and squared off. "
                                  "'Closed not ground' ends are closed but not machined flat.")

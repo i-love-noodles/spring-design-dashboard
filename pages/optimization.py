@@ -4,6 +4,7 @@ import streamlit as st
 from spring_helpers import (
     WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES, MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
+    END_TYPE_NAMES,
     find_candidates, pareto_filter, linked, qp,
 )
 
@@ -139,8 +140,7 @@ with c_right:
                              key="opt_wire_type",
                              help="Wire material grade. Affects tensile strength (Sut) and shear modulus (G).")
     st.markdown("**End Type**")
-    END_TYPES = ["Closed and ground", "Closed not ground"]
-    end_type = st.selectbox("End Type", END_TYPES, label_visibility="collapsed",
+    end_type = st.selectbox("End Type", END_TYPE_NAMES, label_visibility="collapsed",
                             key="opt_end_type",
                             help="'Closed and ground' ends are flat and squared off. "
                                  "'Closed not ground' ends are closed but not machined flat.")
