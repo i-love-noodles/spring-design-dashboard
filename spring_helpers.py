@@ -285,6 +285,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
                 d=d, OD=OD, Na=Na, k=k_actual, Hs_in=Hs, Hs_mm=Hs_mm,
                 margin_mm=margin, safe_to_solid=safe_to_solid,
                 util_at_ct=util_at_ct, util_at_solid=util_at_solid,
+                F_at_ct=F_at_ct,
                 fps=fps_actual, Lf=Lf, C=C, Nt=Nt, Kw=Kw,
                 index_score=index_score,
             ))

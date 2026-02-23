@@ -30,9 +30,36 @@ unit_system = _ctrl_cols[1].radio("Units", _unit_systems, index=_unit_sys_idx,
                                   horizontal=True, label_visibility="collapsed", key="unit_system")
 _metric = unit_system == "Metric"
 
+_prev_unit = st.session_state.get("_prev_unit")
+if _prev_unit is not None and _prev_unit != unit_system:
+    for _uk in ("od", "lf"):
+        _nk, _sk = f"{_uk}_n", f"{_uk}_s"
+        if _nk in st.session_state:
+            if _metric:
+                st.session_state[_nk] = st.session_state[_nk] * MM_PER_IN
+                st.session_state[_sk] = st.session_state[_sk] * MM_PER_IN
+            else:
+                st.session_state[_nk] = st.session_state[_nk] / MM_PER_IN
+                st.session_state[_sk] = st.session_state[_sk] / MM_PER_IN
+st.session_state["_prev_unit"] = unit_system
+
 _ctrl_cols[2].markdown("**Wire Sizes:**",
                        help="Which wire diameter standards to include in the dropdown. "
                             "Check both to see imperial and metric sizes interleaved by diameter.")
+
+_wire_auto_msg = None
+_pending_preset = st.session_state.get("spring_preset",
+                                       st.query_params.get("preset", "Custom"))
+if _pending_preset in SPRING_PRESETS and SPRING_PRESETS[_pending_preset] is not None:
+    _pp = SPRING_PRESETS[_pending_preset]
+    _pp_is_metric = any(abs(_pp[0] - mm) < 0.01 for mm in WIRE_SIZES_MM)
+    if _pp_is_metric and not st.session_state.get("wire_inc_mm", False):
+        st.session_state["wire_inc_mm"] = True
+        _wire_auto_msg = "Enabled metric wire sizes to match preset."
+    elif not _pp_is_metric and not st.session_state.get("wire_inc_in", True):
+        st.session_state["wire_inc_in"] = True
+        _wire_auto_msg = "Enabled imperial wire sizes to match preset."
+
 _inc_in = _ctrl_cols[3].checkbox("in", value=True, key="wire_inc_in")
 _inc_mm = _ctrl_cols[4].checkbox("mm", value=False, key="wire_inc_mm")
 
@@ -41,6 +68,8 @@ _preset_idx = SPRING_PRESET_NAMES.index(_preset_def) if _preset_def in SPRING_PR
 spring_preset = st.selectbox("Spring Preset", SPRING_PRESET_NAMES, index=_preset_idx,
                              key="spring_preset",
                              help="Select a known spring to auto-fill parameters.")
+if _wire_auto_msg:
+    st.info(_wire_auto_msg)
 if spring_preset != "Custom":
     _sp = SPRING_PRESETS[spring_preset]
     _sp_d_mm = _sp[0]
@@ -70,11 +99,11 @@ p_left, p_mid, p_right = st.columns(3)
 with p_left:
     if _metric:
         _od_mm = linked("Outer Diameter (mm)", "od", 5.0, 127.0,
-                         qp("od", 35.6), 0.1, "%.1f", container=p_left,
+                         qp("od", 1.40) * MM_PER_IN, 0.1, "%.1f", container=p_left,
                          help="Outside diameter of the coil.")
         OD = _od_mm / MM_PER_IN
         _lf_mm = linked("Free Length (mm)", "lf", 12.0, 508.0,
-                         qp("lf", 142.2), 1.0, "%.1f", container=p_left,
+                         qp("lf", 5.60) * MM_PER_IN, 1.0, "%.1f", container=p_left,
                          help="Length of the spring with no load applied.")
         Lf = _lf_mm / MM_PER_IN
     else:
@@ -112,7 +141,7 @@ with p_mid:
         format_func=format_wire_d, label_visibility="collapsed",
         help="Cross-section diameter of the spring wire.",
     )
-    Na = linked("Number of Active Coils", "na", 1.0, 40.0, qp("na", 10.0), 0.25,
+    Na = linked("Number of Active Coils", "na", 1.0, 50.0, qp("na", 10.0), 0.25,
                 "%.2f", container=p_mid,
                 help="Coils that deflect under load. Excludes the closed end coils.")
 
@@ -138,7 +167,8 @@ with p_right:
 # ── Sync current values back to URL ──
 
 _new_qp = {"od": f"{OD:.3f}", "lf": f"{Lf:.2f}", "mat": wire_type, "d": str(d),
-           "na": str(Na), "end": end_type, "preset": spring_preset}
+           "na": str(Na), "end": end_type, "preset": spring_preset,
+           "units": unit_system}
 if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
     st.query_params.update(**_new_qp)
 
@@ -209,41 +239,67 @@ st.caption(f"\\*WB Jones 45% safe rule — {wire_type}, G = {G / 1e6:.1f} Mpsi")
 # ── Detailed intermediate values ──
 
 with st.expander("Detailed Calculations"):
+    _PSI_TO_MPA = 0.00689476
+    _LBF_TO_N = 4.44822
+    _D_mm = D * MM_PER_IN
+    _OD_mm = OD * MM_PER_IN
+    _d_mm = d * MM_PER_IN
+    _k_n_mm = k * _LBF_TO_N / MM_PER_IN
+    _Sut_mpa = Sut * _PSI_TO_MPA
+    _tau_allow_mpa = tau_allow * _PSI_TO_MPA
+    _F_safe_n = F_safe * _LBF_TO_N
+    _x_safe_mm = x_safe * MM_PER_IN
+    _F_solid_n = F_solid * _LBF_TO_N
+    _tau_solid_mpa = tau_solid * _PSI_TO_MPA
+    _G_mpa = G * _PSI_TO_MPA
+    _G_gpa = _G_mpa / 1000
+
     dc_left, dc_right = st.columns(2)
     with dc_left:
         st.markdown(
             "| Property | Value |\n|---|---|\n"
-            f"| Mean Diameter (D) | {D:.4f} in |\n"
+            f"| Mean Diameter (D) | {_D_mm:.2f} mm |\n"
             f"| Spring Index (C) | {C:.2f} |\n"
             f"| Wahl Factor (Kw) | {Kw:.4f} |\n"
             f"| Total Coils (Nt) | {Nt:g} |\n"
-            f"| Sut (tensile) | {Sut:,.0f} psi &ensp;({Sut / 1000:.1f} ksi) |\n"
-            f"| &tau;_allow (45%) | {tau_allow:,.0f} psi &ensp;({tau_allow / 1000:.1f} ksi) |\n"
-            f"| Safe Load (F_safe) | {F_safe:.3f} lbf |\n"
-            f"| Safe Deflection | {x_safe:.3f} in |\n"
-            f"| Shear Stress at Solid | {tau_solid:,.0f} psi &ensp;({tau_solid / 1000:.1f} ksi) |\n"
-            f"| Shear Modulus (G) | {G / 1e6:.1f} Mpsi |\n"
+            f"| Sut (tensile) | {_Sut_mpa:.0f} MPa |\n"
+            f"| &tau;_allow (45%) | {_tau_allow_mpa:.0f} MPa |\n"
+            f"| Safe Load (F_safe) | {_F_safe_n:.2f} N |\n"
+            f"| Safe Deflection | {_x_safe_mm:.1f} mm |\n"
+            f"| Shear Stress at Solid | {_tau_solid_mpa:.0f} MPa |\n"
+            f"| Shear Modulus (G) | {_G_gpa:.1f} GPa |\n"
         )
     with dc_right:
         st.markdown("**Formulas**")
-        st.latex(rf"D = OD - d = {OD:.3f} - {d:.3f} = {D:.4f}")
-        st.latex(rf"C = D / d = {D:.4f} / {d:.3f} = {C:.2f}")
+        st.latex(rf"D = OD - d = {_OD_mm:.2f} - {_d_mm:.2f} = {_D_mm:.2f}\;\text{{mm}}")
+        st.latex(rf"C = D / d = {_D_mm:.2f} / {_d_mm:.2f} = {C:.2f}")
         st.latex(rf"K_w = \frac{{4C-1}}{{4C-4}} + \frac{{0.615}}{{C}} = {Kw:.4f}")
-        st.latex(rf"k = \frac{{G \, d^4}}{{8 \, D^3 \, N_a}} = \frac{{{G/1e6:.1f}\text{{M}} \times {d}^4}}{{8 \times {D:.4f}^3 \times {Na:g}}} = {k:.3f}\;\text{{lbf/in}}")
-        st.latex(rf"S_{{ut}} = \frac{{A}}{{d^m}} = \frac{{{_A:,}}}{{{d}^{{{_M}}}}} = {Sut:,.0f}\;\text{{psi}}")
-        st.latex(rf"\tau_{{allow}} = 0.45 \, S_{{ut}} = {tau_allow:,.0f}\;\text{{psi}}")
-        st.latex(rf"F_{{safe}} = \frac{{\tau_{{allow}} \, \pi \, d^3}}{{8 \, D \, K_w}} = {F_safe:.3f}\;\text{{lbf}}")
-        st.latex(rf"x_{{safe}} = F_{{safe}} / k = {x_safe:.3f}\;\text{{in}}")
-        st.latex(rf"\tau_{{solid}} = K_w \frac{{8 \, F_{{solid}} \, D}}{{\pi \, d^3}} = {tau_solid:,.0f}\;\text{{psi}}")
+        st.latex(rf"k = \frac{{G \, d^4}}{{8 \, D^3 \, N_a}} = \frac{{{_G_mpa:.0f} \times {_d_mm:.2f}^4}}{{8 \times {_D_mm:.2f}^3 \times {Na:g}}} = {_k_n_mm:.3f}\;\text{{N/mm}}")
+        st.latex(rf"S_{{ut}} = \frac{{A}}{{d^m}} = {_Sut_mpa:.0f}\;\text{{MPa}}")
+        st.latex(rf"\tau_{{allow}} = 0.45 \, S_{{ut}} = {_tau_allow_mpa:.0f}\;\text{{MPa}}")
+        st.latex(rf"F_{{safe}} = \frac{{\tau_{{allow}} \, \pi \, d^3}}{{8 \, D \, K_w}} = {_F_safe_n:.2f}\;\text{{N}}")
+        st.latex(rf"x_{{safe}} = F_{{safe}} / k = {_x_safe_mm:.1f}\;\text{{mm}}")
+        st.latex(rf"\tau_{{solid}} = K_w \frac{{8 \, F_{{solid}} \, D}}{{\pi \, d^3}} = {_tau_solid_mpa:.0f}\;\text{{MPa}}")
 
 # ── Operating-point check (optional) ──
 
 if st.checkbox("Show Operating-Point Check"):
-    default_len = round(max(Lf * 0.7, Hs + 0.01), 2)
-    L_check = st.slider(
-        "Loaded length (in)", min_value=round(Hs, 3), max_value=round(Lf, 3),
-        value=min(default_len, round(Lf, 3)), step=0.01, format="%.3f",
-    )
+    _LBF_TO_N = 4.44822
+    if _metric:
+        _Hs_mm = round(Hs * MM_PER_IN, 1)
+        _Lf_mm = round(Lf * MM_PER_IN, 1)
+        _def_mm = round(max(_Lf_mm * 0.7, _Hs_mm + 0.1), 1)
+        L_check_mm = st.slider(
+            "Loaded length (mm)", min_value=_Hs_mm, max_value=_Lf_mm,
+            value=min(_def_mm, _Lf_mm), step=0.1, format="%.1f",
+        )
+        L_check = L_check_mm / MM_PER_IN
+    else:
+        default_len = round(max(Lf * 0.7, Hs + 0.01), 2)
+        L_check = st.slider(
+            "Loaded length (in)", min_value=round(Hs, 3), max_value=round(Lf, 3),
+            value=min(default_len, round(Lf, 3)), step=0.01, format="%.3f",
+        )
 
     x_op = Lf - L_check
     F_op = k * x_op
@@ -251,9 +307,14 @@ if st.checkbox("Show Operating-Point Check"):
     util = tau_op / tau_allow
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Deflection", f"{x_op:.3f} in")
-    c2.metric("Force", f"{F_op:.2f} lbf")
-    c3.metric("Shear Stress", f"{tau_op:,.0f} psi")
+    if _metric:
+        c1.metric("Deflection", f"{x_op * MM_PER_IN:.1f} mm")
+        c2.metric("Force", f"{F_op * _LBF_TO_N:.2f} N")
+        c3.metric("Shear Stress", f"{tau_op / 145.038:.0f} MPa")
+    else:
+        c1.metric("Deflection", f"{x_op:.3f} in")
+        c2.metric("Force", f"{F_op:.2f} lbf")
+        c3.metric("Shear Stress", f"{tau_op:,.0f} psi")
     c4.metric(
         "Utilization", f"{util:.1%}",
         delta="SAFE" if util <= 1 else "OVER",
@@ -262,15 +323,32 @@ if st.checkbox("Show Operating-Point Check"):
 
 # ── Blaster estimation ──
 
+_url_comp = st.query_params.get("comp_from")
+if _url_comp is not None:
+    _opt_sig = f"{_url_comp}_{st.query_params.get('comp_to')}_{st.query_params.get('blaster')}"
+    if st.session_state.get("_opt_sig") != _opt_sig:
+        st.session_state["_opt_sig"] = _opt_sig
+        _url_bl = st.query_params.get("blaster", "Custom")
+        if _url_bl in BLASTER_PRESET_NAMES:
+            st.session_state["analysis_preset"] = _url_bl
+        st.session_state["comp_from_n"] = qp("comp_from", 134.0)
+        st.session_state["comp_from_s"] = qp("comp_from", 134.0)
+        st.session_state["comp_to_n"] = qp("comp_to", 39.0)
+        st.session_state["comp_to_s"] = qp("comp_to", 39.0)
 
-show_fps = st.checkbox("Estimate FPS")
+show_fps = st.checkbox("Estimate FPS", value=True)
 show_eff = st.checkbox("Estimate Efficiency")
 
 if show_fps or show_eff:
     bl_ct = st.container()
 
-    preset = bl_ct.selectbox("Blaster Preset", BLASTER_PRESET_NAMES, key="analysis_preset",
+    _bl_def = st.query_params.get("blaster", "Lynx")
+    _bl_idx = BLASTER_PRESET_NAMES.index(_bl_def) if _bl_def in BLASTER_PRESET_NAMES else 0
+    preset = bl_ct.selectbox("Blaster Preset", BLASTER_PRESET_NAMES, index=_bl_idx,
+                             key="analysis_preset",
                              help="Select a blaster to auto-fill compress from/to values.")
+    bl_ct.caption("This checks spring performance only — it does not verify physical "
+                  "fit with plunger tube ID, barrel length, or other blaster geometry.")
     if preset != "Custom":
         _preset_from, _preset_to = BLASTER_PRESETS[preset]
         st.session_state["comp_from_n"] = _preset_from
@@ -288,12 +366,14 @@ if show_fps or show_eff:
     dart_kg = dart_g / 1000.0
 
     comp_from = linked(
-        "Compression From (mm)", "comp_from", 5.0, 500.0, 134.0, 0.5, "%.1f",
+        "Compression From (mm)", "comp_from", 5.0, 500.0,
+        qp("comp_from", 134.0), 0.5, "%.1f",
         container=bl_left,
         help="Spring length when the blaster is unprimed (plunger forward, at rest).",
     )
     comp_to = linked(
-        "Compression To (mm)", "comp_to", 5.0, 500.0, 39.0, 0.5, "%.1f",
+        "Compression To (mm)", "comp_to", 5.0, 500.0,
+        qp("comp_to", 39.0), 0.5, "%.1f",
         container=bl_right,
         help="Spring length when the blaster is primed (plunger pulled back, spring fully compressed).",
     )
@@ -309,6 +389,15 @@ if show_fps or show_eff:
     elif comp_to < Hs_mm:
         st.error(f"'Compression To' ({comp_to:.1f} mm) is below solid height ({Hs_mm:.1f} mm) — spring cannot compress that far.")
     else:
+        if Lf * MM_PER_IN > comp_from:
+            _precomp_mm = Lf * MM_PER_IN - comp_from
+            _precomp_force = k * x_from
+            st.info(
+                f"Spring free length ({Lf * MM_PER_IN:.1f} mm) exceeds compress-from "
+                f"({comp_from:.1f} mm) — the spring starts pre-compressed by "
+                f"{_precomp_mm:.1f} mm ({_precomp_force:.2f} lbf) at rest."
+            )
+
         energy_in = 0.5 * k * (x_to**2 - x_from**2)
         energy_j = energy_in * LBF_IN_TO_J
 
@@ -333,6 +422,8 @@ if show_fps or show_eff:
             c1.metric("Stored Energy", f"{energy_j:.3f} J")
             c2.metric("FPS (low est.)", f"{fps_lo:.0f} fps")
             c3.metric("FPS (high est.)", f"{fps_hi:.0f} fps")
+            st.caption("FPS estimates are very rough approximations and should be treated "
+                       "as a vibe check, not precise predictions.")
 
         if show_eff:
             st.markdown("### Efficiency Estimation")
