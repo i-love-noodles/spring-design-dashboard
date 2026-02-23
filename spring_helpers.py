@@ -33,6 +33,27 @@ BLASTER_PRESETS = {
 }
 BLASTER_PRESET_NAMES = list(BLASTER_PRESETS.keys())
 
+
+def best_blaster_for_spring(spring_length_mm):
+    """Find the blaster preset whose compress_from best matches a spring's free length.
+
+    Prefers blasters where the spring is at least as long as compress_from
+    (i.e. the spring fits with some preload), and among those picks the
+    one with the least preload.  Blasters where the spring is shorter
+    than compress_from are heavily penalised.
+    """
+    best_name = None
+    best_score = float('inf')
+    for name, vals in BLASTER_PRESETS.items():
+        if vals is None:
+            continue
+        diff = spring_length_mm - vals[0]
+        score = diff if diff >= 0 else abs(diff) + 1000
+        if score < best_score:
+            best_score = score
+            best_name = name
+    return best_name or "Custom"
+
 # Spring presets: (wire_d_mm, active_coils, length_mm, od_mm, end_type)
 # Imperial wire sizes are stored as their exact mm equivalent (e.g. 0.091" → 2.3114);
 # format_wire_d() recognises them as imperial and displays with "in" units.
@@ -46,7 +67,7 @@ SPRING_PRESETS = {
     "SFX8":   (1.9,  15.125, 144.5, 30.4, "Closed and ground"),
     "5kg LS":  (2.0,  11.5,   145.0, 30.2, "Closed not ground"),
     "8kg LS":  (2.3,  12.25,  141.0, 30.5, "Closed not ground"),
-    "OOD 788 2.0 x 140mm":          (2.0,  17.5,  140.0, 24.6, "Closed not ground"),
+    "OOD 788 2.0 x 140mm":          (2.0,  17.5,  140.0, 24.6, "One closed, one open"),
     "OOD K18 2.3 x 140mm":          (2.3114, 11.5, 140.0, 31.0, "Closed not ground"),
     "OOD K24 2.0 x 140mm":          (2.032,  12.0, 140.0, 31.0, "Closed not ground"),
     "OOD 788 2.0 x 255mm":          (2.0,  32.5,  255.0, 24.6, "Closed not ground"),
@@ -94,8 +115,13 @@ def snap(val, lo, hi, step):
 
 
 def linked(label, key, lo, hi, default, step, fmt="%.3f", container=None,
-           slider_lo=None, slider_hi=None, help=None):
-    """Render a linked number-input + slider pair, returning the current value."""
+           slider_lo=None, slider_hi=None, help=None, preset_key=None):
+    """Render a linked number-input + slider pair, returning the current value.
+
+    If *preset_key* is given, changing this input automatically sets
+    ``st.session_state[preset_key]`` to ``"Custom"`` so the preset no longer
+    overwrites user edits.
+    """
     ct = container or st
     s_lo = slider_lo if slider_lo is not None else lo
     s_hi = slider_hi if slider_hi is not None else hi
@@ -103,9 +129,13 @@ def linked(label, key, lo, hi, default, step, fmt="%.3f", container=None,
 
     def _sn():
         st.session_state[sk] = max(s_lo, min(s_hi, st.session_state[nk]))
+        if preset_key:
+            st.session_state[preset_key] = "Custom"
 
     def _ns():
         st.session_state[nk] = st.session_state[sk]
+        if preset_key:
+            st.session_state[preset_key] = "Custom"
 
     if nk not in st.session_state:
         st.session_state[nk] = default

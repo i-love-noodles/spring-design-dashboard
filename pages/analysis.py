@@ -8,7 +8,7 @@ from spring_helpers import (
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
     SPRING_PRESETS, SPRING_PRESET_NAMES,
     END_TYPE_NAMES,
-    compute_spring, format_wire_d, linked, qp,
+    compute_spring, format_wire_d, linked, qp, best_blaster_for_spring,
 )
 
 st.title("Compression Spring Design Analyzer")
@@ -94,25 +94,40 @@ if spring_preset != "Custom":
     st.session_state["na_s"] = _sp[1]
     _sp_end = _sp[4]
 
+    if st.session_state.get("_prev_spring_preset") != spring_preset:
+        _best_bl = best_blaster_for_spring(_sp[2])
+        st.session_state["analysis_preset"] = _best_bl
+        if _best_bl != "Custom":
+            _bl_from, _bl_to = BLASTER_PRESETS[_best_bl]
+            st.session_state["comp_from_n"] = _bl_from
+            st.session_state["comp_from_s"] = _bl_from
+            st.session_state["comp_to_n"] = _bl_to
+            st.session_state["comp_to_s"] = _bl_to
+st.session_state["_prev_spring_preset"] = spring_preset
+
 p_left, p_mid, p_right = st.columns(3)
 
 with p_left:
     if _metric:
         _od_mm = linked("Outer Diameter (mm)", "od", 5.0, 127.0,
                          qp("od", 1.40) * MM_PER_IN, 0.1, "%.1f", container=p_left,
-                         help="Outside diameter of the coil.")
+                         help="Outside diameter of the coil.",
+                         preset_key="spring_preset")
         OD = _od_mm / MM_PER_IN
         _lf_mm = linked("Free Length (mm)", "lf", 12.0, 508.0,
                          qp("lf", 5.60) * MM_PER_IN, 1.0, "%.1f", container=p_left,
-                         help="Length of the spring with no load applied.")
+                         help="Length of the spring with no load applied.",
+                         preset_key="spring_preset")
         Lf = _lf_mm / MM_PER_IN
     else:
         OD = linked("Outer Diameter (in)", "od", 0.20, 5.00, qp("od", 1.40), 0.005,
                     container=p_left,
-                    help="Outside diameter of the coil (not the mean diameter).")
+                    help="Outside diameter of the coil (not the mean diameter).",
+                    preset_key="spring_preset")
         Lf = linked("Free Length (in)", "lf", 0.50, 20.00, qp("lf", 5.60), 0.05, "%.2f",
                     container=p_left,
-                    help="Length of the spring with no load applied.")
+                    help="Length of the spring with no load applied.",
+                    preset_key="spring_preset")
 
 # ── Wire size list from checkboxes ──
 
@@ -143,7 +158,8 @@ with p_mid:
     )
     Na = linked("Number of Active Coils", "na", 1.0, 50.0, qp("na", 10.0), 0.25,
                 "%.2f", container=p_mid,
-                help="Coils that deflect under load. Excludes the closed end coils.")
+                help="Coils that deflect under load. Excludes the closed end coils.",
+                preset_key="spring_preset")
 
 with p_right:
     if spring_preset != "Custom":
@@ -370,12 +386,14 @@ if show_fps or show_eff:
         qp("comp_from", 134.0), 0.5, "%.1f",
         container=bl_left,
         help="Spring length when the blaster is unprimed (plunger forward, at rest).",
+        preset_key="analysis_preset",
     )
     comp_to = linked(
         "Compression To (mm)", "comp_to", 5.0, 500.0,
         qp("comp_to", 39.0), 0.5, "%.1f",
         container=bl_right,
         help="Spring length when the blaster is primed (plunger pulled back, spring fully compressed).",
+        preset_key="analysis_preset",
     )
 
     x_from = (Lf * MM_PER_IN - comp_from) / MM_PER_IN
@@ -390,12 +408,12 @@ if show_fps or show_eff:
         st.error(f"'Compression To' ({comp_to:.1f} mm) is below solid height ({Hs_mm:.1f} mm) — spring cannot compress that far.")
     else:
         if Lf * MM_PER_IN > comp_from:
-            _precomp_mm = Lf * MM_PER_IN - comp_from
-            _precomp_force = k * x_from
+            _preload_mm = Lf * MM_PER_IN - comp_from
+            _preload_force = k * x_from
             st.info(
                 f"Spring free length ({Lf * MM_PER_IN:.1f} mm) exceeds compress-from "
-                f"({comp_from:.1f} mm) — the spring starts pre-compressed by "
-                f"{_precomp_mm:.1f} mm ({_precomp_force:.2f} lbf) at rest."
+                f"({comp_from:.1f} mm) — the spring is preloaded by "
+                f"{_preload_mm:.1f} mm ({_preload_force:.2f} lbf) at rest."
             )
 
         energy_in = 0.5 * k * (x_to**2 - x_from**2)

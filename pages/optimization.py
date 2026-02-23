@@ -93,10 +93,12 @@ bl_left, bl_mid, bl_right = st.columns(3)
 
 comp_from_mm = linked("Compress From (mm)", "opt_cfrom", 5.0, 500.0, qp("cfrom", 134.0), 0.5, "%.1f",
                       container=bl_left,
-                      help="Spring length when the blaster is unprimed (plunger forward, at rest).")
+                      help="Spring length when the blaster is unprimed (plunger forward, at rest).",
+                      preset_key="opt_preset")
 comp_to_mm = linked("Compress To (mm)", "opt_cto", 5.0, 500.0, qp("cto", 39.0), 0.5, "%.1f",
                     container=bl_mid,
-                    help="Spring length when the blaster is primed (plunger pulled back, spring fully compressed).")
+                    help="Spring length when the blaster is primed (plunger pulled back, spring fully compressed).",
+                    preset_key="opt_preset")
 margin_mm = linked("Solid Height Margin (mm)", "opt_margin", 0.0, 20.0, qp("margin", 2.0), 0.5, "%.1f",
                    container=bl_right,
                    help="Extra clearance between the spring's solid height and compress-to. "
