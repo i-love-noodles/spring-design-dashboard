@@ -1,7 +1,5 @@
 import math
 
-import numpy as np
-import plotly.graph_objects as go
 import streamlit as st
 
 from spring_helpers import (
@@ -133,10 +131,13 @@ with spec_m:
     )
 
 with spec_r:
+    _LBF_TO_KGF = 0.453592
     st.markdown(
         "| | Length | Load | Defl. |\n|---|---|---|---|\n"
-        f"| **Safe** | {L_safe_rpt:.3f} in | {F_safe_at_rpt:.2f} lbf | {x_safe_defl:.3f} in |\n"
-        f"| **Solid** | {Hs:.3f} in | {F_solid:.2f} lbf | {x_solid:.3f} in |\n"
+        f"| **Safe** | {L_safe_rpt:.3f} in | {F_safe_at_rpt:.2f} lb | {x_safe_defl:.3f} in |\n"
+        f"| | {L_safe_rpt * MM_PER_IN:.1f} mm | {F_safe_at_rpt * _LBF_TO_KGF:.2f} kg | {x_safe_defl * MM_PER_IN:.1f} mm |\n"
+        f"| **Solid** | {Hs:.3f} in | {F_solid:.2f} lb | {x_solid:.3f} in |\n"
+        f"| | {Hs * MM_PER_IN:.1f} mm | {F_solid * _LBF_TO_KGF:.2f} kg | {x_solid * MM_PER_IN:.1f} mm |\n"
     )
 
 if safe_to_solid:
@@ -174,49 +175,6 @@ with st.expander("Detailed Calculations"):
         st.latex(rf"F_{{safe}} = \frac{{\tau_{{allow}} \, \pi \, d^3}}{{8 \, D \, K_w}} = {F_safe:.3f}\;\text{{lbf}}")
         st.latex(rf"x_{{safe}} = F_{{safe}} / k = {x_safe:.3f}\;\text{{in}}")
         st.latex(rf"\tau_{{solid}} = K_w \frac{{8 \, F_{{solid}} \, D}}{{\pi \, d^3}} = {tau_solid:,.0f}\;\text{{psi}}")
-
-# ── Force–Deflection diagram (optional) ──
-
-if st.checkbox("Show Force–Deflection Diagram"):
-    max_defl = Lf - Hs
-    if max_defl <= 0:
-        st.warning("Free length is at or below solid height — no travel available.")
-    else:
-        defl = np.linspace(0, max_defl, 300)
-        force = k * defl
-
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=defl, y=force, name="Spring curve",
-            line=dict(color="#2563eb", width=2),
-            hovertemplate="Deflection: %{x:.3f} in<br>Force: %{y:.2f} lbf<extra></extra>",
-        ))
-
-        if x_safe <= max_defl:
-            fig.add_trace(go.Scatter(
-                x=[x_safe], y=[F_safe], mode="markers",
-                marker=dict(size=10, color="#f59e0b"),
-                name=f"Safe point ({x_safe:.2f} in, {F_safe:.2f} lbf)",
-            ))
-        fig.add_hline(
-            y=F_safe, line_dash="dash", line_color="#f59e0b",
-            annotation_text=f"Safe load {F_safe:.2f} lbf",
-            annotation_position="top left",
-        )
-        fig.add_vline(
-            x=max_defl, line_dash="dot", line_color="#dc2626",
-            annotation_text=f"Solid @ {max_defl:.2f} in",
-            annotation_position="top left",
-        )
-
-        fig.update_layout(
-            xaxis_title="Deflection from free (in)",
-            yaxis_title="Force (lbf)",
-            height=420,
-            margin=dict(t=30, b=40, l=60, r=20),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        )
-        st.plotly_chart(fig, use_container_width=True)
 
 # ── Operating-point check (optional) ──
 
