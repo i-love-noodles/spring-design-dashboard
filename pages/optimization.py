@@ -9,7 +9,7 @@ from spring_helpers import (
     find_candidates, format_wire_d, pareto_filter, linked, qp,
 )
 
-st.title("Spring Optimization")
+st.title("Spring Design Optimization")
 
 _unit_systems = ["Imperial", "Metric"]
 _unit_sys_def = qp("units", "Imperial")

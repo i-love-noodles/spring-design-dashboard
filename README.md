@@ -15,7 +15,7 @@ A Streamlit dashboard for analyzing and optimizing compression spring designs, w
 - FPS estimation and efficiency back-calculation with blaster presets (BABP, Hijinx, Lynx, Minx, Lonx)
 - All parameters encoded in the URL for bookmarking and sharing
 
-### Optimization Page
+### Design Optimization Page
 - Target a specific FPS (at a given efficiency and dart weight) or a spring rate
 - Blaster geometry constraints with presets (compress from/to)
 - OD constraint (fixed or range)

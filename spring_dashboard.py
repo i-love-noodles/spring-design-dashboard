@@ -4,6 +4,6 @@ st.set_page_config(page_title="Spring Design Analyzer", layout="wide")
 
 pg = st.navigation([
     st.Page("pages/analysis.py", title="Analysis", default=True),
-    st.Page("pages/optimization.py", title="Optimization"),
+    st.Page("pages/optimization.py", title="Design Optimization"),
 ])
 pg.run()
