@@ -113,7 +113,7 @@ with c_mid:
                        label_visibility="collapsed")
     if lf_mode == "Exact":
         Lf = linked("Free Length (in)", "opt_lf", 0.50, 20.00, qp("opt_lf_val", 5.60), 0.05, "%.2f",
-                    container=c_mid,
+                    container=c_mid, slider_lo=comp_from_mm / MM_PER_IN, slider_hi=11.00,
                     help="Length of the spring with no load applied.")
     else:
         auto_settle = c_mid.checkbox("Auto estimate", value=True, key="opt_auto_settle",
@@ -171,6 +171,12 @@ if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
 
 if comp_from_mm <= comp_to_mm:
     st.error("'Compress From' must be longer than 'Compress To'.")
+    st.stop()
+
+if lf_mode == "Exact" and Lf < comp_from_mm / MM_PER_IN:
+    st.error(f"Free length ({Lf:.2f} in / {Lf * MM_PER_IN:.1f} mm) must be longer than "
+             f"compress-from ({comp_from_mm:.1f} mm). The spring needs to be longer than "
+             f"its installed length.")
     st.stop()
 
 if _implied_rate_placeholder is not None:
