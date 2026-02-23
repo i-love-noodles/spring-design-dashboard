@@ -34,6 +34,8 @@ BLASTER_PRESETS = {
 BLASTER_PRESET_NAMES = list(BLASTER_PRESETS.keys())
 
 # Spring presets: (wire_d_mm, active_coils, length_mm, od_mm, end_type)
+# Imperial wire sizes are stored as their exact mm equivalent (e.g. 0.091" → 2.3114);
+# format_wire_d() recognises them as imperial and displays with "in" units.
 SPRING_PRESETS = {
     "Custom": None,
     "SFX3":   (2.4,  10.625, 145.5, 30.5, "Closed and ground"),
@@ -44,6 +46,9 @@ SPRING_PRESETS = {
     "SFX8":   (1.9,  15.125, 144.5, 30.4, "Closed and ground"),
     "5kg LS":  (2.0,  11.5,   145.0, 30.2, "Closed not ground"),
     "8kg LS":  (2.3,  12.25,  141.0, 30.5, "Closed not ground"),
+    "OOD 788 2.0 x 140mm":          (2.0,  17.5,  140.0, 24.6, "Closed not ground"),
+    "OOD K18 2.3 x 140mm":          (2.3114, 11.5, 140.0, 31.0, "Closed not ground"),
+    "OOD K24 2.0 x 140mm":          (2.032,  12.0, 140.0, 31.0, "Closed not ground"),
     "OOD 788 2.0 x 255mm":          (2.0,  32.5,  255.0, 24.6, "Closed not ground"),
     "OOD K25 2.0 x 280mm":          (2.0,  24.0,  280.0, 24.6, "Closed not ground"),
     "OOD K26 2.0 x 280mm":          (2.0,  34.0,  280.0, 21.4, "Closed not ground"),
@@ -57,6 +62,7 @@ SPRING_PRESETS = {
     "OOD Tuning 2.03 x 140mm":      (2.03, 11.0,  140.0, 24.6, "Closed not ground"),
     "OOD Tuning 2.16 x 140mm":      (2.16, 11.0,  140.0, 24.6, "Closed not ground"),
     "OOD Tuning 2.20 x 140mm":      (2.20, 11.0,  140.0, 24.6, "Closed not ground"),
+    "RS21":                          (2.54, 14.0,  254.0, 34.8, "Closed and ground"),
 }
 SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
 
