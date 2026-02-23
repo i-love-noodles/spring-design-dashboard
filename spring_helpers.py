@@ -12,7 +12,12 @@ WIRE_MATERIALS = {
 }
 WIRE_MAT_NAMES = list(WIRE_MATERIALS.keys())
 
-WIRE_SIZES = [0.072, 0.075, 0.08, 0.085, 0.091, 0.095, 0.1, 0.105, 0.11]
+WIRE_SIZES_IN = [
+    0.050, 0.051, 0.054, 0.055, 0.057, 0.058, 0.059, 0.062, 0.065, 0.067,
+    0.068, 0.070, 0.072, 0.075, 0.080, 0.085, 0.091, 0.093, 0.095,
+    0.100, 0.105, 0.110, 0.115, 0.120,
+]
+WIRE_SIZES_MM = [1.4, 1.6, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.8, 3.0]
 
 MM_PER_IN = 25.4
 LBF_IN_TO_J = 0.1129848
@@ -39,9 +44,30 @@ SPRING_PRESETS = {
     "SFX8":   (1.9,  15.125, 144.5, 30.4, "Closed and ground"),
     "5kg LS":  (2.0,  11.5,   145.0, 30.2, "Closed not ground"),
     "8kg LS":  (2.3,  12.25,  141.0, 30.5, "Closed not ground"),
-    "OOD 788": (2.0,  32.5,   255.0, 24.6, "Closed not ground"),
+    "OOD 788 2.0 x 255mm":          (2.0,  32.5,  255.0, 24.6, "Closed not ground"),
+    "OOD K25 2.0 x 280mm":          (2.0,  24.0,  280.0, 24.6, "Closed not ground"),
+    "OOD K26 2.0 x 280mm":          (2.0,  34.0,  280.0, 21.4, "Closed not ground"),
+    "OOD K31 1.6 x 280mm":          (1.6,  43.75, 280.0, 19.8, "Closed not ground"),
+    "OOD Tuning 1.45 x 140mm":      (1.45, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 1.57 x 140mm":      (1.57, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 1.70 x 140mm":      (1.70, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 1.78 x 140mm":      (1.78, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 1.83 x 140mm":      (1.83, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 1.91 x 140mm":      (1.91, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 2.03 x 140mm":      (2.03, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 2.16 x 140mm":      (2.16, 11.0,  140.0, 24.6, "Closed not ground"),
+    "OOD Tuning 2.20 x 140mm":      (2.20, 11.0,  140.0, 24.6, "Closed not ground"),
 }
 SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
+
+
+def format_wire_d(d_in):
+    """Format a wire diameter with the appropriate unit (mm if metric, in otherwise)."""
+    d_mm = d_in * MM_PER_IN
+    for mm in WIRE_SIZES_MM:
+        if abs(d_mm - mm) < 0.01:
+            return f"{mm:.1f} mm"
+    return f"{d_in:.3f} in"
 
 
 def qp(key, default):
@@ -155,12 +181,14 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
                     efficiency=0.50, dart_kg=0.0012,
                     comp_from_mm, comp_to_mm, margin_mm=2.0,
                     od_mode="fixed", od_fixed=1.4, od_min=1.0, od_max=2.0,
-                    Lf, wire_type, end_type):
+                    Lf, wire_type, end_type, wire_sizes=None):
     """Search wire diameters and OD values for feasible spring designs.
 
     Returns (candidates, reject_reasons) where candidates is a sorted list of
     dicts and reject_reasons tallies why designs were rejected.
     """
+    if wire_sizes is None:
+        wire_sizes = WIRE_SIZES_IN
     A, m, G = WIRE_MATERIALS[wire_type]
     _dead, _ground, _inact = END_TYPE_PARAMS[end_type]
     comp_from_in = comp_from_mm / MM_PER_IN
@@ -174,7 +202,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
     candidates = []
     rejects = {"spring_index": 0, "solid_too_tall": 0, "overstressed": 0, "na_too_low": 0}
 
-    for d in WIRE_SIZES:
+    for d in wire_sizes:
         Sut = A / d**m
         tau_allow = 0.45 * Sut
 

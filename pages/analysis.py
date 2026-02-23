@@ -3,18 +3,38 @@ import math
 import streamlit as st
 
 from spring_helpers import (
-    WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES, MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
+    WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES_IN, WIRE_SIZES_MM,
+    MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
     SPRING_PRESETS, SPRING_PRESET_NAMES,
     END_TYPE_NAMES,
-    compute_spring, linked, qp,
+    compute_spring, format_wire_d, linked, qp,
 )
 
 st.title("Compression Spring Design Analyzer")
 
 # ── Spring parameter inputs ──
 
-st.subheader("Spring Parameters")
+st.markdown(
+    '<div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:0.5rem">'
+    '<h3 style="margin:0">Spring Parameters</h3>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+_ctrl_cols = st.columns([1, 2, 1, 1, 1])
+_ctrl_cols[0].markdown("**Units:**")
+_unit_systems = ["Imperial", "Metric"]
+_unit_sys_def = qp("units", "Imperial")
+_unit_sys_idx = _unit_systems.index(_unit_sys_def) if _unit_sys_def in _unit_systems else 0
+unit_system = _ctrl_cols[1].radio("Units", _unit_systems, index=_unit_sys_idx,
+                                  horizontal=True, label_visibility="collapsed", key="unit_system")
+_metric = unit_system == "Metric"
+
+_ctrl_cols[2].markdown("**Wire Sizes:**",
+                       help="Which wire diameter standards to include in the dropdown. "
+                            "Check both to see imperial and metric sizes interleaved by diameter.")
+_inc_in = _ctrl_cols[3].checkbox("in", value=True, key="wire_inc_in")
+_inc_mm = _ctrl_cols[4].checkbox("mm", value=False, key="wire_inc_mm")
 
 _preset_def = st.query_params.get("preset", "Custom")
 _preset_idx = SPRING_PRESET_NAMES.index(_preset_def) if _preset_def in SPRING_PRESET_NAMES else 0
@@ -23,13 +43,24 @@ spring_preset = st.selectbox("Spring Preset", SPRING_PRESET_NAMES, index=_preset
                              help="Select a known spring to auto-fill parameters.")
 if spring_preset != "Custom":
     _sp = SPRING_PRESETS[spring_preset]
-    _sp_d_in = min(WIRE_SIZES, key=lambda w: abs(w - _sp[0] / MM_PER_IN))
-    _sp_od_in = round(_sp[3] / MM_PER_IN, 4)
-    _sp_lf_in = round(_sp[2] / MM_PER_IN, 4)
-    st.session_state["od_n"] = _sp_od_in
-    st.session_state["od_s"] = _sp_od_in
-    st.session_state["lf_n"] = _sp_lf_in
-    st.session_state["lf_s"] = _sp_lf_in
+    _sp_d_mm = _sp[0]
+    _sp_is_metric = any(abs(_sp_d_mm - mm) < 0.01 for mm in WIRE_SIZES_MM)
+    if _sp_is_metric:
+        _sp_d_in = _sp_d_mm / MM_PER_IN
+    else:
+        _sp_d_in = min(WIRE_SIZES_IN, key=lambda w: abs(w - _sp_d_mm / MM_PER_IN))
+    if _metric:
+        st.session_state["od_n"] = round(_sp[3], 1)
+        st.session_state["od_s"] = round(_sp[3], 1)
+        st.session_state["lf_n"] = round(_sp[2], 1)
+        st.session_state["lf_s"] = round(_sp[2], 1)
+    else:
+        _sp_od_in = round(_sp[3] / MM_PER_IN, 4)
+        _sp_lf_in = round(_sp[2] / MM_PER_IN, 4)
+        st.session_state["od_n"] = _sp_od_in
+        st.session_state["od_s"] = _sp_od_in
+        st.session_state["lf_n"] = _sp_lf_in
+        st.session_state["lf_s"] = _sp_lf_in
     st.session_state["na_n"] = _sp[1]
     st.session_state["na_s"] = _sp[1]
     _sp_end = _sp[4]
@@ -37,23 +68,48 @@ if spring_preset != "Custom":
 p_left, p_mid, p_right = st.columns(3)
 
 with p_left:
-    OD = linked("Outer Diameter (in)", "od", 0.20, 5.00, qp("od", 1.40), 0.005,
-                container=p_left,
-                help="Outside diameter of the coil (not the mean diameter).")
-    Lf = linked("Free Length (in)", "lf", 0.50, 20.00, qp("lf", 5.60), 0.05, "%.2f",
-                container=p_left,
-                help="Length of the spring with no load applied.")
+    if _metric:
+        _od_mm = linked("Outer Diameter (mm)", "od", 5.0, 127.0,
+                         qp("od", 35.6), 0.1, "%.1f", container=p_left,
+                         help="Outside diameter of the coil.")
+        OD = _od_mm / MM_PER_IN
+        _lf_mm = linked("Free Length (mm)", "lf", 12.0, 508.0,
+                         qp("lf", 142.2), 1.0, "%.1f", container=p_left,
+                         help="Length of the spring with no load applied.")
+        Lf = _lf_mm / MM_PER_IN
+    else:
+        OD = linked("Outer Diameter (in)", "od", 0.20, 5.00, qp("od", 1.40), 0.005,
+                    container=p_left,
+                    help="Outside diameter of the coil (not the mean diameter).")
+        Lf = linked("Free Length (in)", "lf", 0.50, 20.00, qp("lf", 5.60), 0.05, "%.2f",
+                    container=p_left,
+                    help="Length of the spring with no load applied.")
+
+# ── Wire size list from checkboxes ──
+
+_mm_as_in = [mm / MM_PER_IN for mm in WIRE_SIZES_MM]
+_wire_list = []
+if _inc_in:
+    _wire_list.extend(WIRE_SIZES_IN)
+if _inc_mm:
+    _wire_list.extend(_mm_as_in)
+_wire_list = sorted(set(_wire_list))
+
+if not _wire_list:
+    st.error("Select at least one wire size group (in or mm).")
+    st.stop()
 
 with p_mid:
     if spring_preset != "Custom":
         _d_def = _sp_d_in
     else:
-        _d_def = qp("d", 0.095)
-    _d_idx = WIRE_SIZES.index(_d_def) if _d_def in WIRE_SIZES else WIRE_SIZES.index(0.095)
-    st.markdown("**Wire Diameter (in)**")
+        _d_def = min(_wire_list, key=lambda w: abs(w - float(qp("d", 0.095))))
+
+    _d_idx = min(range(len(_wire_list)), key=lambda i: abs(_wire_list[i] - _d_def))
+    st.markdown("**Wire Diameter**")
     d = st.selectbox(
-        "Wire Diameter", WIRE_SIZES, index=_d_idx,
-        format_func=lambda x: f"{x:.3f}", label_visibility="collapsed",
+        "Wire Diameter", _wire_list, index=_d_idx,
+        format_func=format_wire_d, label_visibility="collapsed",
         help="Cross-section diameter of the spring wire.",
     )
     Na = linked("Number of Active Coils", "na", 1.0, 40.0, qp("na", 10.0), 0.25,

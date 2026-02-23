@@ -2,10 +2,11 @@ import pandas as pd
 import streamlit as st
 
 from spring_helpers import (
-    WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES, MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
+    WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES_IN, WIRE_SIZES_MM,
+    MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
     END_TYPE_NAMES,
-    find_candidates, pareto_filter, linked, qp,
+    find_candidates, format_wire_d, pareto_filter, linked, qp,
 )
 
 st.title("Spring Optimization")
@@ -144,6 +145,20 @@ with c_right:
                             key="opt_end_type",
                             help="'Closed and ground' ends are flat and squared off. "
                                  "'Closed not ground' ends are closed but not machined flat.")
+    st.markdown("**Wire Sizes**")
+    _inc_imperial = st.checkbox("Include imperial (in)", value=True, key="opt_inc_in")
+    _inc_metric = st.checkbox("Include metric (mm)", value=False, key="opt_inc_mm")
+
+_wire_sizes = []
+if _inc_imperial:
+    _wire_sizes.extend(WIRE_SIZES_IN)
+if _inc_metric:
+    _wire_sizes.extend([mm / MM_PER_IN for mm in WIRE_SIZES_MM])
+_wire_sizes.sort()
+
+if not _wire_sizes:
+    st.error("Select at least one wire size group (imperial or metric).")
+    st.stop()
 
 # ── Sync current values back to URL ──
 
@@ -216,6 +231,7 @@ candidates, rejects = find_candidates(
     Lf=Lf,
     wire_type=wire_type,
     end_type=end_type,
+    wire_sizes=_wire_sizes,
 )
 
 if not candidates:
@@ -261,7 +277,7 @@ else:
     st.caption(f"{n_total} candidates found — {n_safe} safe to solid")
 
 df = pd.DataFrame([{
-    "Wire d": f'{c["d"]:.3f}',
+    "Wire d": format_wire_d(c["d"]),
     "OD": f'{c["OD"]:.3f}',
     "Na": f'{c["Na"]:g}',
     "Rate (lbf/in)": f'{c["k"]:.3f}',
@@ -293,7 +309,7 @@ st.markdown("**Open a design in Analysis**")
 choice_idx = st.selectbox(
     "Select row", range(len(candidates)),
     format_func=lambda i: (
-        f"#{i+1}: d={candidates[i]['d']:.3f}, OD={candidates[i]['OD']:.3f}, "
+        f"#{i+1}: d={format_wire_d(candidates[i]['d'])}, OD={candidates[i]['OD']:.3f}, "
         f"Na={candidates[i]['Na']:g}, k={candidates[i]['k']:.3f} lbf/in"
         f" — {'safe to solid' if candidates[i]['safe_to_solid'] else 'safe at CT'}"
     ),
