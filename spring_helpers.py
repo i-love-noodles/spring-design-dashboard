@@ -6,7 +6,7 @@ import streamlit as st
 # ── Material data (Shigley's, Table 10-4) ──
 # Each entry: (A (psi), m, G (psi))
 WIRE_MATERIALS = {
-    "Music Wire (ASTM A228)":  (201_000, 0.145, 11_500_000),
+    "Music Wire (ASTM A228)":  (201_000, 0.145, 11_920_000),
     "Hard Drawn (ASTM A227)":  (140_000, 0.190, 11_500_000),
     "Stainless (ASTM A313)":   (169_000, 0.146, 10_000_000),
 }
