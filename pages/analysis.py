@@ -352,8 +352,8 @@ if _url_comp is not None:
         st.session_state["comp_to_n"] = qp("comp_to", 39.0)
         st.session_state["comp_to_s"] = qp("comp_to", 39.0)
 
-show_fps = st.checkbox("Estimate FPS", value=True)
-show_eff = st.checkbox("Estimate Efficiency")
+show_fps = st.checkbox("Estimate FPS", value=st.query_params.get("show_fps", "1") != "0")
+show_eff = st.checkbox("Estimate Efficiency", value=st.query_params.get("show_eff", "0") != "0")
 
 if show_fps or show_eff:
     bl_ct = st.container()
@@ -375,7 +375,7 @@ if show_fps or show_eff:
     bl_left, bl_right = bl_ct.columns(2)
 
     dart_g = linked(
-        "Dart Weight (g)", "dart_g", 0.50, 10.00, 1.00, 0.01, "%.2f",
+        "Dart Weight (g)", "dart_g", 0.50, 10.00, qp("dart_g", 1.00), 0.01, "%.2f",
         container=bl_left, slider_lo=0.80, slider_hi=1.30,
         help="Mass of the dart in grams.",
     )
@@ -423,12 +423,12 @@ if show_fps or show_eff:
             st.markdown("### FPS Estimation")
             fps_left, fps_right = st.columns(2)
             eff_min = linked(
-                "Efficiency Min (%)", "eff_min", 1.0, 100.0, 45.0, 1.0, "%.0f",
+                "Efficiency Min (%)", "eff_min", 1.0, 100.0, qp("eff_min", 45.0), 1.0, "%.0f",
                 container=fps_left,
                 help="Low estimate of how much spring energy transfers to dart kinetic energy.",
             ) / 100.0
             eff_max = linked(
-                "Efficiency Max (%)", "eff_max", 1.0, 100.0, 55.0, 1.0, "%.0f",
+                "Efficiency Max (%)", "eff_max", 1.0, 100.0, qp("eff_max", 55.0), 1.0, "%.0f",
                 container=fps_right,
                 help="High estimate of how much spring energy transfers to dart kinetic energy.",
             ) / 100.0
@@ -458,3 +458,15 @@ if show_fps or show_eff:
             c1.metric("Stored Energy", f"{energy_j:.3f} J")
             c2.metric("Dart KE", f"{ke_j:.3f} J")
             c3.metric("Efficiency", f"{eff_est:.1%}")
+
+# ── Sync FPS estimation values back to URL ──
+
+_fps_qp = {"show_fps": "1" if show_fps else "0",
+           "show_eff": "1" if show_eff else "0"}
+if show_fps or show_eff:
+    _fps_qp.update(blaster=preset, dart_g=f"{dart_g:.2f}",
+                   comp_from=f"{comp_from:.1f}", comp_to=f"{comp_to:.1f}")
+if show_fps:
+    _fps_qp.update(eff_min=f"{eff_min * 100:.0f}", eff_max=f"{eff_max * 100:.0f}")
+if any(st.query_params.get(k) != v for k, v in _fps_qp.items()):
+    st.query_params.update(**_fps_qp)
