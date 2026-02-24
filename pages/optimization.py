@@ -385,10 +385,13 @@ choice_idx = st.selectbox(
 
 sel = candidates[choice_idx]
 from urllib.parse import urlencode
-analysis_params = urlencode({
+_analysis_qp = {
     "od": f"{sel['OD']:.3f}", "lf": f"{sel['Lf']:.2f}", "mat": wire_type,
     "d": f"{sel['d']:.6f}", "na": str(sel["Na"]), "end": end_type,
     "blaster": preset,
     "comp_from": f"{comp_from_mm:.1f}", "comp_to": f"{comp_to_mm:.1f}",
-})
+}
+if target_mode == "Target FPS":
+    _analysis_qp["dart_g"] = f"{dart_g:.2f}"
+analysis_params = urlencode(_analysis_qp)
 st.link_button("Open in Analysis", f"/?" + analysis_params)

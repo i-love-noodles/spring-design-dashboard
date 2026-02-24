@@ -396,6 +396,20 @@ if show_fps or show_eff:
         preset_key="analysis_preset",
     )
 
+    if show_fps:
+        st.markdown("### FPS Estimation")
+        fps_left, fps_right = st.columns(2)
+        eff_min = linked(
+            "Efficiency Min (%)", "eff_min", 1.0, 100.0, qp("eff_min", 45.0), 1.0, "%.0f",
+            container=fps_left,
+            help="Low estimate of how much spring energy transfers to dart kinetic energy.",
+        ) / 100.0
+        eff_max = linked(
+            "Efficiency Max (%)", "eff_max", 1.0, 100.0, qp("eff_max", 55.0), 1.0, "%.0f",
+            container=fps_right,
+            help="High estimate of how much spring energy transfers to dart kinetic energy.",
+        ) / 100.0
+
     x_from = (Lf * MM_PER_IN - comp_from) / MM_PER_IN
     x_to = (Lf * MM_PER_IN - comp_to) / MM_PER_IN
 
@@ -420,19 +434,6 @@ if show_fps or show_eff:
         energy_j = energy_in * LBF_IN_TO_J
 
         if show_fps:
-            st.markdown("### FPS Estimation")
-            fps_left, fps_right = st.columns(2)
-            eff_min = linked(
-                "Efficiency Min (%)", "eff_min", 1.0, 100.0, qp("eff_min", 45.0), 1.0, "%.0f",
-                container=fps_left,
-                help="Low estimate of how much spring energy transfers to dart kinetic energy.",
-            ) / 100.0
-            eff_max = linked(
-                "Efficiency Max (%)", "eff_max", 1.0, 100.0, qp("eff_max", 55.0), 1.0, "%.0f",
-                container=fps_right,
-                help="High estimate of how much spring energy transfers to dart kinetic energy.",
-            ) / 100.0
-
             fps_lo = math.sqrt(2 * eff_min * energy_j / dart_kg) * FPS_PER_MPS
             fps_hi = math.sqrt(2 * eff_max * energy_j / dart_kg) * FPS_PER_MPS
 
