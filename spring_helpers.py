@@ -5,7 +5,8 @@ import streamlit as st
 
 # ── Material data ──
 # Each entry: (A (psi), m, G (psi))  — Sut = A / d^m
-# Default A, m values are from Shigley's Table 10-4.
+# A, m values are from Shigley's Table 10-4; used for Hard Drawn and Stainless.
+# Music Wire uses the ASTM A228 minimum tensile strength table instead (see below).
 WIRE_MATERIALS = {
     "Music Wire (ASTM A228)":  (201_000, 0.145, 11_500_000),
     "Hard Drawn (ASTM A227)":  (140_000, 0.190, 11_500_000),
@@ -13,14 +14,46 @@ WIRE_MATERIALS = {
 }
 WIRE_MAT_NAMES = list(WIRE_MATERIALS.keys())
 
-# WB Jones uses lower A constants, yielding ~3.5% lower Sut and matching
-# their quoted safe compression values across multiple wire diameters.
-SUT_OVERRIDES = {
-    "WB Jones": {
-        "Music Wire (ASTM A228)": (194_000, 0.145),
-    },
-}
-SUT_SOURCE_NAMES = ["WB Jones", "Shigley's"]
+# ASTM A228 minimum tensile strength by wire diameter (inches → ksi).
+# Source: https://suhm.net/wp-content/uploads/2015/09/Music_Wire-EN-US_v2.html
+_ASTM_A228_SUT_TABLE = [
+    (0.004, 439), (0.005, 426), (0.006, 415), (0.007, 407), (0.008, 399),
+    (0.009, 393), (0.010, 387), (0.011, 382), (0.012, 377), (0.013, 373),
+    (0.014, 369), (0.015, 365), (0.016, 362), (0.018, 356), (0.020, 350),
+    (0.022, 345), (0.024, 341), (0.026, 337), (0.028, 333), (0.030, 330),
+    (0.032, 327), (0.034, 324), (0.036, 321), (0.038, 318), (0.040, 315),
+    (0.042, 313), (0.045, 309), (0.048, 306), (0.051, 303), (0.055, 300),
+    (0.059, 296), (0.063, 293), (0.067, 290), (0.072, 287), (0.076, 284),
+    (0.080, 282), (0.085, 279), (0.090, 276), (0.095, 274), (0.100, 271),
+    (0.102, 270), (0.107, 268), (0.110, 267), (0.112, 266), (0.121, 263),
+    (0.125, 261), (0.130, 259), (0.135, 258), (0.140, 256), (0.145, 254),
+    (0.150, 253), (0.156, 251), (0.162, 249), (0.177, 245), (0.192, 241),
+    (0.207, 238), (0.225, 235), (0.250, 230),
+]
+
+
+def _astm_a228_sut(d_in):
+    """Interpolate ASTM A228 minimum Sut (psi) for a wire diameter in inches."""
+    table = _ASTM_A228_SUT_TABLE
+    if d_in <= table[0][0]:
+        return table[0][1] * 1000
+    if d_in >= table[-1][0]:
+        return table[-1][1] * 1000
+    for i in range(len(table) - 1):
+        d0, s0 = table[i]
+        d1, s1 = table[i + 1]
+        if d0 <= d_in <= d1:
+            t = (d_in - d0) / (d1 - d0)
+            return (s0 + t * (s1 - s0)) * 1000
+    return table[-1][1] * 1000
+
+
+def get_sut(d_in, wire_type):
+    """Return Sut in psi for a given wire diameter and material."""
+    if wire_type == "Music Wire (ASTM A228)":
+        return _astm_a228_sut(d_in)
+    A, m, _G = WIRE_MATERIALS[wire_type]
+    return A / d_in ** m
 
 WIRE_SIZES_IN = [
     0.050, 0.051, 0.054, 0.055, 0.057, 0.058, 0.059, 0.062, 0.065, 0.067,
@@ -184,12 +217,9 @@ END_TYPE_NAMES = list(END_TYPE_PARAMS.keys())
 
 # ── Spring physics ──
 
-def compute_spring(d, OD, Na, Lf, end_type, wire_type, sut_source="WB Jones"):
+def compute_spring(d, OD, Na, Lf, end_type, wire_type):
     """Compute all spring properties from basic inputs.  Returns a dict."""
-    A, m, G = WIRE_MATERIALS[wire_type]
-    ovr = SUT_OVERRIDES.get(sut_source, {}).get(wire_type)
-    if ovr:
-        A, m = ovr
+    _A, _m, G = WIRE_MATERIALS[wire_type]
     D = OD - d
     C = D / d
     Kw = (4 * C - 1) / (4 * C - 4) + 0.615 / C
@@ -199,7 +229,7 @@ def compute_spring(d, OD, Na, Lf, end_type, wire_type, sut_source="WB Jones"):
     Nt = Na + _dead
     Hs = Nt * d if _ground else (Nt + 1) * d
 
-    Sut = A / d**m
+    Sut = get_sut(d, wire_type)
     tau_allow = 0.45 * Sut
     F_safe = (tau_allow * math.pi * d**3) / (8 * D * Kw)
     x_safe = F_safe / k
@@ -220,7 +250,7 @@ def compute_spring(d, OD, Na, Lf, end_type, wire_type, sut_source="WB Jones"):
 
     return dict(
         d=d, OD=OD, Na=Na, Lf=Lf, end_type=end_type, wire_type=wire_type,
-        A=A, m=m, G=G, D=D, C=C, Kw=Kw, k=k, Nt=Nt, Hs=Hs,
+        G=G, D=D, C=C, Kw=Kw, k=k, Nt=Nt, Hs=Hs,
         Sut=Sut, tau_allow=tau_allow, F_safe=F_safe, x_safe=x_safe,
         L_safe=L_safe, L_safe_rpt=L_safe_rpt, safe_to_solid=safe_to_solid,
         x_solid=x_solid, F_solid=F_solid, tau_solid=tau_solid, util_solid=util_solid,
@@ -233,8 +263,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
                     efficiency=0.50, dart_kg=0.001,
                     comp_from_mm, comp_to_mm, margin_mm=2.0,
                     od_mode="fixed", od_fixed=1.4, od_min=1.0, od_max=2.0,
-                    Lf, wire_type, end_type, wire_sizes=None,
-                    sut_source="WB Jones"):
+                    Lf, wire_type, end_type, wire_sizes=None):
     """Search wire diameters and OD values for feasible spring designs.
 
     Returns (candidates, reject_reasons) where candidates is a sorted list of
@@ -242,10 +271,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
     """
     if wire_sizes is None:
         wire_sizes = WIRE_SIZES_IN
-    A, m, G = WIRE_MATERIALS[wire_type]
-    ovr = SUT_OVERRIDES.get(sut_source, {}).get(wire_type)
-    if ovr:
-        A, m = ovr
+    _A, _m, G = WIRE_MATERIALS[wire_type]
     _dead, _ground, _inact = END_TYPE_PARAMS[end_type]
     comp_from_in = comp_from_mm / MM_PER_IN
     comp_to_in = comp_to_mm / MM_PER_IN
@@ -259,7 +285,7 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
     rejects = {"spring_index": 0, "solid_too_tall": 0, "overstressed": 0, "na_too_low": 0}
 
     for d in wire_sizes:
-        Sut = A / d**m
+        Sut = get_sut(d, wire_type)
         tau_allow = 0.45 * Sut
 
         for OD in od_values:
