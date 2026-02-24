@@ -217,7 +217,7 @@ def compute_spring(d, OD, Na, Lf, end_type, wire_type):
 
 
 def find_candidates(*, target_mode, target_fps=None, target_rate=None,
-                    efficiency=0.50, dart_kg=0.0012,
+                    efficiency=0.50, dart_kg=0.001,
                     comp_from_mm, comp_to_mm, margin_mm=2.0,
                     od_mode="fixed", od_fixed=1.4, od_min=1.0, od_max=2.0,
                     Lf, wire_type, end_type, wire_sizes=None):

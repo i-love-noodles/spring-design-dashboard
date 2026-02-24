@@ -375,7 +375,7 @@ if show_fps or show_eff:
     bl_left, bl_right = bl_ct.columns(2)
 
     dart_g = linked(
-        "Dart Weight (g)", "dart_g", 0.50, 10.00, 1.20, 0.01, "%.2f",
+        "Dart Weight (g)", "dart_g", 0.50, 10.00, 1.00, 0.01, "%.2f",
         container=bl_left, slider_lo=0.80, slider_hi=1.30,
         help="Mass of the dart in grams.",
     )

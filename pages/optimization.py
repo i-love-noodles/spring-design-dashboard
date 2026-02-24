@@ -49,7 +49,7 @@ if target_mode == "Target FPS":
         target_fps = linked("Target FPS", "opt_fps", 50.0, 500.0, qp("fps", 150.0), 1.0, "%.0f",
                             container=tgt_left,
                             help="Desired dart muzzle velocity in feet per second.")
-        dart_g = linked("Dart Weight (g)", "opt_dart", 0.50, 10.00, qp("dart", 1.20), 0.01, "%.2f",
+        dart_g = linked("Dart Weight (g)", "opt_dart", 0.50, 10.00, qp("dart", 1.00), 0.01, "%.2f",
                         container=tgt_left, slider_lo=0.80, slider_hi=1.30,
                         help="Mass of the dart in grams.")
     with tgt_right:
@@ -66,7 +66,7 @@ else:
                              help="Desired force per inch of deflection.")
     target_fps = None
     efficiency = 0.50
-    dart_g = 1.20
+    dart_g = 1.00
     dart_kg = dart_g / 1000.0
     _implied_rate_placeholder = None
 
