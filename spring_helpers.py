@@ -90,6 +90,8 @@ SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
 
 def format_wire_d(d_in):
     """Format a wire diameter with the appropriate unit (mm if metric, in otherwise)."""
+    if any(abs(d_in - w) < 0.0001 for w in WIRE_SIZES_IN):
+        return f"{d_in:.3f} in"
     d_mm = d_in * MM_PER_IN
     for mm in WIRE_SIZES_MM:
         if abs(d_mm - mm) < 0.01:
