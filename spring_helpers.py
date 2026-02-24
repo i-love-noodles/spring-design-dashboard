@@ -3,14 +3,24 @@ import math
 import numpy as np
 import streamlit as st
 
-# ── Material data (Shigley's, Table 10-4) ──
-# Each entry: (A (psi), m, G (psi))
+# ── Material data ──
+# Each entry: (A (psi), m, G (psi))  — Sut = A / d^m
+# Default A, m values are from Shigley's Table 10-4.
 WIRE_MATERIALS = {
-    "Music Wire (ASTM A228)":  (201_000, 0.145, 11_920_000),
+    "Music Wire (ASTM A228)":  (201_000, 0.145, 11_500_000),
     "Hard Drawn (ASTM A227)":  (140_000, 0.190, 11_500_000),
     "Stainless (ASTM A313)":   (169_000, 0.146, 10_000_000),
 }
 WIRE_MAT_NAMES = list(WIRE_MATERIALS.keys())
+
+# WB Jones uses lower A constants, yielding ~3.5% lower Sut and matching
+# their quoted safe compression values across multiple wire diameters.
+SUT_OVERRIDES = {
+    "WB Jones": {
+        "Music Wire (ASTM A228)": (194_000, 0.145),
+    },
+}
+SUT_SOURCE_NAMES = ["WB Jones", "Shigley's"]
 
 WIRE_SIZES_IN = [
     0.050, 0.051, 0.054, 0.055, 0.057, 0.058, 0.059, 0.062, 0.065, 0.067,
@@ -174,9 +184,12 @@ END_TYPE_NAMES = list(END_TYPE_PARAMS.keys())
 
 # ── Spring physics ──
 
-def compute_spring(d, OD, Na, Lf, end_type, wire_type):
+def compute_spring(d, OD, Na, Lf, end_type, wire_type, sut_source="WB Jones"):
     """Compute all spring properties from basic inputs.  Returns a dict."""
     A, m, G = WIRE_MATERIALS[wire_type]
+    ovr = SUT_OVERRIDES.get(sut_source, {}).get(wire_type)
+    if ovr:
+        A, m = ovr
     D = OD - d
     C = D / d
     Kw = (4 * C - 1) / (4 * C - 4) + 0.615 / C
@@ -220,7 +233,8 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
                     efficiency=0.50, dart_kg=0.001,
                     comp_from_mm, comp_to_mm, margin_mm=2.0,
                     od_mode="fixed", od_fixed=1.4, od_min=1.0, od_max=2.0,
-                    Lf, wire_type, end_type, wire_sizes=None):
+                    Lf, wire_type, end_type, wire_sizes=None,
+                    sut_source="WB Jones"):
     """Search wire diameters and OD values for feasible spring designs.
 
     Returns (candidates, reject_reasons) where candidates is a sorted list of
@@ -229,6 +243,9 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
     if wire_sizes is None:
         wire_sizes = WIRE_SIZES_IN
     A, m, G = WIRE_MATERIALS[wire_type]
+    ovr = SUT_OVERRIDES.get(sut_source, {}).get(wire_type)
+    if ovr:
+        A, m = ovr
     _dead, _ground, _inact = END_TYPE_PARAMS[end_type]
     comp_from_in = comp_from_mm / MM_PER_IN
     comp_to_in = comp_to_mm / MM_PER_IN

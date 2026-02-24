@@ -7,7 +7,7 @@ from spring_helpers import (
     MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
     SPRING_PRESETS, SPRING_PRESET_NAMES,
-    END_TYPE_NAMES,
+    END_TYPE_NAMES, SUT_SOURCE_NAMES,
     compute_spring, format_wire_d, linked, qp, best_blaster_for_spring,
 )
 
@@ -179,18 +179,26 @@ with p_right:
     wire_type = st.selectbox("Wire Type", WIRE_MAT_NAMES, index=_mat_idx,
                              label_visibility="collapsed",
                              help="Wire material grade. Affects tensile strength (Sut) and shear modulus (G).")
+    _sut_def = st.query_params.get("sut", SUT_SOURCE_NAMES[0])
+    _sut_idx = SUT_SOURCE_NAMES.index(_sut_def) if _sut_def in SUT_SOURCE_NAMES else 0
+    st.markdown("**Sut Source**")
+    sut_source = st.selectbox("Sut Source", SUT_SOURCE_NAMES, index=_sut_idx,
+                              label_visibility="collapsed",
+                              help="Source for tensile strength constants (A, m) used in the "
+                                   "45% safe stress rule. WB Jones values match their quoted "
+                                   "safe compression; Shigley's are from Table 10-4.")
 
 # ── Sync current values back to URL ──
 
 _new_qp = {"od": f"{OD:.3f}", "lf": f"{Lf:.2f}", "mat": wire_type, "d": str(d),
            "na": str(Na), "end": end_type, "preset": spring_preset,
-           "units": unit_system}
+           "units": unit_system, "sut": sut_source}
 if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
     st.query_params.update(**_new_qp)
 
 # ── Core calculations ──
 
-_s = compute_spring(d, OD, Na, Lf, end_type, wire_type)
+_s = compute_spring(d, OD, Na, Lf, end_type, wire_type, sut_source)
 _A, _M, G = _s["A"], _s["m"], _s["G"]
 D, C, Kw, k = _s["D"], _s["C"], _s["Kw"], _s["k"]
 Nt, Hs = _s["Nt"], _s["Hs"]
@@ -250,7 +258,7 @@ if safe_to_solid:
     st.info(f"Spring is safe to solid by the 45% rule — max {tau_solid / Sut:.0%} at solid.")
 elif util_solid > 1.0:
     st.warning(f"Spring is overstressed at solid ({util_solid:.0%} of safe utilization) and may take a set.")
-st.caption(f"\\*WB Jones 45% safe rule — {wire_type}, G = {G / 1e6:.1f} Mpsi")
+st.caption(f"\\*45% safe rule ({sut_source} Sut) — {wire_type}, G = {G / 1e6:.1f} Mpsi")
 
 # ── Detailed intermediate values ──
 

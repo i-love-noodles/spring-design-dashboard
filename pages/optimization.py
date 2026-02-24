@@ -5,7 +5,7 @@ from spring_helpers import (
     WIRE_MATERIALS, WIRE_MAT_NAMES, WIRE_SIZES_IN, WIRE_SIZES_MM,
     MM_PER_IN, LBF_IN_TO_J, FPS_PER_MPS,
     BLASTER_PRESETS, BLASTER_PRESET_NAMES,
-    END_TYPE_NAMES,
+    END_TYPE_NAMES, SUT_SOURCE_NAMES,
     find_candidates, format_wire_d, pareto_filter, linked, qp,
 )
 
@@ -193,6 +193,14 @@ with c_right:
                             key="opt_end_type",
                             help="'Closed and ground' ends are flat and squared off. "
                                  "'Closed not ground' ends are closed but not machined flat.")
+    _sut_def = st.query_params.get("sut", SUT_SOURCE_NAMES[0])
+    _sut_idx = SUT_SOURCE_NAMES.index(_sut_def) if _sut_def in SUT_SOURCE_NAMES else 0
+    st.markdown("**Sut Source**")
+    sut_source = st.selectbox("Sut Source", SUT_SOURCE_NAMES, index=_sut_idx,
+                              key="opt_sut_source", label_visibility="collapsed",
+                              help="Source for tensile strength constants (A, m) used in the "
+                                   "45% safe stress rule. WB Jones values match their quoted "
+                                   "safe compression; Shigley's are from Table 10-4.")
     st.markdown("**Wire Sizes**")
     _inc_imperial = st.checkbox("Include imperial (in)", value=True, key="opt_inc_in")
     _inc_metric = st.checkbox("Include metric (mm)", value=False, key="opt_inc_mm")
@@ -213,7 +221,8 @@ if not _wire_sizes:
 _new_qp = {"tgt": target_mode, "blaster": preset,
            "cfrom": f"{comp_from_mm:.1f}", "cto": f"{comp_to_mm:.1f}",
            "margin": f"{margin_mm:.1f}", "mat": wire_type, "end": end_type,
-           "od_mode": od_mode, "lf_mode": lf_mode, "units": unit_system}
+           "od_mode": od_mode, "lf_mode": lf_mode, "units": unit_system,
+           "sut": sut_source}
 if target_mode == "Target FPS":
     _new_qp.update(fps=f"{target_fps:.0f}", dart=f"{dart_g:.2f}", eff=f"{efficiency * 100:.0f}")
 else:
@@ -281,6 +290,7 @@ with st.spinner("Searching for feasible designs..."):
         wire_type=wire_type,
         end_type=end_type,
         wire_sizes=_wire_sizes,
+        sut_source=sut_source,
     )
 
 if not candidates:
@@ -390,5 +400,6 @@ analysis_params = urlencode({
     "d": f"{sel['d']:.6f}", "na": str(sel["Na"]), "end": end_type,
     "blaster": preset,
     "comp_from": f"{comp_from_mm:.1f}", "comp_to": f"{comp_to_mm:.1f}",
+    "sut": sut_source,
 })
 st.link_button("Open in Analysis", f"/?" + analysis_params)
