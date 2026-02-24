@@ -69,6 +69,7 @@ FPS_PER_MPS = 3.28084
 BLASTER_PRESETS = {
     "Custom": None,
     "BABP": (134.0, 39.0),
+    "BABP XL": (189.0, 49.0),
     "Hijinx": (175.0, 50.0),
     "Lynx": (137.0, 38.0),
     "Minx": (112.0, 38.0),
