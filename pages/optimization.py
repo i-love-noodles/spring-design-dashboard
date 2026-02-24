@@ -29,6 +29,10 @@ if _prev_unit is not None and _prev_unit != unit_system:
             else:
                 st.session_state[_nk] = st.session_state[_nk] / MM_PER_IN
                 st.session_state[_sk] = st.session_state[_sk] / MM_PER_IN
+    if _metric:
+        st.session_state["opt_inc_mm"] = True
+    else:
+        st.session_state["opt_inc_in"] = True
 st.session_state["_opt_prev_unit"] = unit_system
 
 # ══════════════════════════════════════════════
@@ -195,7 +199,7 @@ with c_right:
                                  "'Closed not ground' ends are closed but not machined flat.")
     st.markdown("**Wire Sizes**")
     _inc_imperial = st.checkbox("Include imperial (in)", value=True, key="opt_inc_in")
-    _inc_metric = st.checkbox("Include metric (mm)", value=False, key="opt_inc_mm")
+    _inc_metric = st.checkbox("Include metric (mm)", value=_metric, key="opt_inc_mm")
 
 _wire_sizes = []
 if _inc_imperial:

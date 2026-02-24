@@ -41,6 +41,10 @@ if _prev_unit is not None and _prev_unit != unit_system:
             else:
                 st.session_state[_nk] = st.session_state[_nk] / MM_PER_IN
                 st.session_state[_sk] = st.session_state[_sk] / MM_PER_IN
+    if _metric:
+        st.session_state["wire_inc_mm"] = True
+    else:
+        st.session_state["wire_inc_in"] = True
 st.session_state["_prev_unit"] = unit_system
 
 _ctrl_cols[2].markdown("**Wire Sizes:**",
@@ -61,7 +65,7 @@ if _pending_preset in SPRING_PRESETS and SPRING_PRESETS[_pending_preset] is not 
         _wire_auto_msg = "Enabled imperial wire sizes to match preset."
 
 _inc_in = _ctrl_cols[3].checkbox("in", value=True, key="wire_inc_in")
-_inc_mm = _ctrl_cols[4].checkbox("mm", value=False, key="wire_inc_mm")
+_inc_mm = _ctrl_cols[4].checkbox("mm", value=_metric, key="wire_inc_mm")
 
 _preset_def = st.query_params.get("preset", "Custom")
 _preset_idx = SPRING_PRESET_NAMES.index(_preset_def) if _preset_def in SPRING_PRESET_NAMES else 0
