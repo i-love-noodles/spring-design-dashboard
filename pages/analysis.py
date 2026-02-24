@@ -396,6 +396,17 @@ if show_fps or show_eff:
         preset_key="analysis_preset",
     )
 
+    Hs_mm = Hs * MM_PER_IN
+    _spacer_max = max(0.0, comp_to - Hs_mm)
+    spacer_mm = bl_right.slider(
+        "Spacer (mm)", min_value=0.0, max_value=round(_spacer_max, 1),
+        value=0.0, step=0.5, format="%.1f",
+        help="Spacer length added behind the spring. Reduces both compress-from "
+             "and compress-to by this amount.",
+    )
+    comp_from -= spacer_mm
+    comp_to -= spacer_mm
+
     if show_fps:
         st.markdown("### FPS Estimation")
         fps_left, fps_right = st.columns(2)
@@ -413,7 +424,6 @@ if show_fps or show_eff:
     x_from = (Lf * MM_PER_IN - comp_from) / MM_PER_IN
     x_to = (Lf * MM_PER_IN - comp_to) / MM_PER_IN
 
-    Hs_mm = Hs * MM_PER_IN
     if x_from < 0 or x_to < 0:
         st.error("Compression lengths exceed free length — invalid configuration.")
     elif comp_from <= comp_to:
