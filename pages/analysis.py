@@ -75,6 +75,8 @@ spring_preset = st.selectbox("Spring Preset", SPRING_PRESET_NAMES, index=_preset
 if _wire_auto_msg:
     st.info(_wire_auto_msg)
 if spring_preset != "Custom":
+    st.caption("Spring presets are hand measured and are meant to be rough approximations, not exact specifications.")
+if spring_preset != "Custom":
     _sp = SPRING_PRESETS[spring_preset]
     _sp_d_mm = _sp[0]
     _sp_is_metric = any(abs(_sp_d_mm - mm) < 0.01 for mm in WIRE_SIZES_MM)

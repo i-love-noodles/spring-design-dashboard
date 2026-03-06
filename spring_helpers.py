@@ -110,8 +110,9 @@ SPRING_PRESETS = {
     "SFX7":   (2.0,  11.5,   141.5, 31.0, "Closed and ground"),
     "SFX8":   (1.9,  12.625, 143.0, 30.3, "Closed and ground"),
     "SFX9":   (1.9,  15.125, 144.5, 30.4, "Closed and ground"),
+    "FX3":    (2.3,  18.0,   295.0, 30.3, "Closed and ground"),
     "5kg LS":  (2.0,  11.5,   145.0, 30.2, "Closed not ground"),
-    "8kg LS":  (2.3,  12.25,  141.0, 30.5, "Closed not ground"),
+    "8kg LS":  (2.3,  12.25,  140.0, 30.5, "Closed not ground"),
     "OOD 788 2.0 x 140mm":          (2.0,  17.5,  140.0, 24.6, "One closed, one open"),
     "OOD K18 2.3 x 140mm":          (2.3114, 11.5, 140.0, 31.0, "Closed not ground"),
     "OOD K24 2.0 x 140mm":          (2.032,  12.0, 140.0, 31.0, "Closed not ground"),
@@ -128,7 +129,8 @@ SPRING_PRESETS = {
     "OOD Tuning 2.03 x 140mm":      (2.03, 11.0,  140.0, 24.6, "Closed not ground"),
     "OOD Tuning 2.16 x 140mm":      (2.16, 11.0,  140.0, 24.6, "Closed not ground"),
     "OOD Tuning 2.20 x 140mm":      (2.20, 11.0,  140.0, 24.6, "Closed not ground"),
-    "RS21":                          (2.54, 14.0,  254.0, 34.8, "Closed and ground"),
+    "RS21":                         (2.54, 14.0,  254.0, 34.8, "Closed and ground"),
+    "RN14":                         (2.54, 12.0,  203.2, 37.084, "Closed and ground"),
 }
 SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
 
