@@ -20,7 +20,7 @@ _metric = unit_system == "Metric"
 
 _prev_unit = st.session_state.get("_opt_prev_unit")
 if _prev_unit is not None and _prev_unit != unit_system:
-    for _uk in ("opt_od_fix", "opt_od_min", "opt_od_max"):
+    for _uk in ("opt_od_fix", "opt_od_min", "opt_od_max", "opt_id_fix"):
         _nk, _sk = f"{_uk}_n", f"{_uk}_s"
         if _nk in st.session_state:
             if _metric:
@@ -40,15 +40,14 @@ st.session_state["_opt_prev_unit"] = unit_system
 # ══════════════════════════════════════════════
 
 st.subheader("Target")
-_tgt_modes = ["Target FPS", "Target Spring Rate"]
+_tgt_modes = ["Target FPS", "Target Spring Rate", "Max Spring Rate"]
 _tgt_def = st.query_params.get("tgt", _tgt_modes[0])
 _tgt_idx = _tgt_modes.index(_tgt_def) if _tgt_def in _tgt_modes else 0
 target_mode = st.radio("Optimize for", _tgt_modes, index=_tgt_idx,
                        horizontal=True, label_visibility="collapsed")
 
-tgt_left, tgt_right = st.columns(2)
-
 if target_mode == "Target FPS":
+    tgt_left, tgt_right = st.columns(2)
     with tgt_left:
         target_fps = linked("Target FPS", "opt_fps", 50.0, 500.0, qp("fps", 150.0), 1.0, "%.0f",
                             container=tgt_left,
@@ -63,12 +62,20 @@ if target_mode == "Target FPS":
     dart_kg = dart_g / 1000.0
     target_rate = None
     _implied_rate_placeholder = st.empty()
-else:
-    with tgt_left:
-        target_rate = linked("Spring Rate (lbf/in)", "opt_rate", 0.1, 100.0, qp("rate", 5.0), 0.1,
-                             "%.2f", container=tgt_left,
-                             help="Desired force per inch of deflection.")
+elif target_mode == "Target Spring Rate":
+    target_rate = linked("Spring Rate (lbf/in)", "opt_rate", 0.1, 100.0, qp("rate", 5.0), 0.1,
+                         "%.2f",
+                         help="Desired force per inch of deflection.")
     target_fps = None
+    efficiency = 0.50
+    dart_g = 1.00
+    dart_kg = dart_g / 1000.0
+    _implied_rate_placeholder = None
+else:
+    st.info("Finds the stiffest feasible spring for each wire/OD combination that satisfies "
+            "all stress and geometry constraints.")
+    target_fps = None
+    target_rate = None
     efficiency = 0.50
     dart_g = 1.00
     dart_kg = dart_g / 1000.0
@@ -116,11 +123,12 @@ st.subheader("Spring Constraints")
 c_left, c_mid, c_right = st.columns(3)
 
 with c_left:
-    _od_modes = ["Fixed OD", "OD Range"]
+    _od_modes = ["Fixed OD", "OD Range", "Fixed ID"]
     _od_mode_def = st.query_params.get("od_mode", _od_modes[0])
     _od_mode_idx = _od_modes.index(_od_mode_def) if _od_mode_def in _od_modes else 0
-    od_mode = st.radio("OD Constraint", _od_modes, index=_od_mode_idx, horizontal=True,
+    od_mode = st.radio("Diameter Constraint", _od_modes, index=_od_mode_idx, horizontal=True,
                        label_visibility="collapsed")
+    id_fixed = None
     if od_mode == "Fixed OD":
         if _metric:
             _od_fix_mm = linked("OD (mm)", "opt_od_fix", 5.0, 127.0,
@@ -131,7 +139,7 @@ with c_left:
             od_fixed = linked("OD (in)", "opt_od_fix", 0.20, 5.00, qp("od_fix", 1.40), 0.005, container=c_left,
                               help="Outer diameter of the spring. Must fit inside the blaster plunger tube ID.")
         od_min = od_max = od_fixed
-    else:
+    elif od_mode == "OD Range":
         if _metric:
             _od_min_mm = linked("OD Min (mm)", "opt_od_min", 5.0, 127.0,
                                 qp("od_min", 1.20) * MM_PER_IN, 0.1, "%.1f", container=c_left,
@@ -146,16 +154,43 @@ with c_left:
                             help="Minimum outer diameter to search.")
             od_max = linked("OD Max (in)", "opt_od_max", 0.20, 5.00, qp("od_max", 1.50), 0.01, container=c_left,
                             help="Maximum outer diameter to search. Limited by blaster plunger tube ID.")
+    else:
+        if _metric:
+            _id_fix_mm = linked("ID (mm)", "opt_id_fix", 5.0, 127.0,
+                                qp("id_fix", 1.00) * MM_PER_IN, 0.1, "%.1f", container=c_left,
+                                help="Inner diameter of the spring. The spring must fit around a shaft or rod of this diameter.")
+            id_fixed = _id_fix_mm / MM_PER_IN
+        else:
+            id_fixed = linked("ID (in)", "opt_id_fix", 0.20, 5.00, qp("id_fix", 1.00), 0.005, container=c_left,
+                              help="Inner diameter of the spring. The spring must fit around a shaft or rod of this diameter.")
 
 # ── Free length ──
 
 with c_mid:
     _lf_modes = ["From compress-from", "Exact"]
+    if target_mode == "Max Spring Rate":
+        _lf_modes.append("Optimize Energy")
     _lf_mode_def = st.query_params.get("lf_mode", _lf_modes[0])
     _lf_mode_idx = _lf_modes.index(_lf_mode_def) if _lf_mode_def in _lf_modes else 0
     lf_mode = st.radio("Free Length", _lf_modes, index=_lf_mode_idx, horizontal=True,
                        label_visibility="collapsed")
-    if lf_mode == "Exact":
+    lf_range = None
+    if lf_mode == "Optimize Energy":
+        _lf_min_mm = linked("Lf Min (mm)", "opt_lf_min", 12.0, 508.0,
+                            qp("lf_min", comp_from_mm), 0.5, "%.1f",
+                            container=c_mid,
+                            slider_lo=max(12.0, comp_to_mm),
+                            slider_hi=comp_from_mm + 60.0,
+                            help="Minimum free length to search.")
+        _lf_max_mm = linked("Lf Max (mm)", "opt_lf_max", 12.0, 508.0,
+                            qp("lf_max", comp_from_mm + 25.0), 0.5, "%.1f",
+                            container=c_mid,
+                            slider_lo=max(12.0, comp_from_mm),
+                            slider_hi=comp_from_mm + 60.0,
+                            help="Maximum free length to search.")
+        lf_range = (_lf_min_mm / MM_PER_IN, _lf_max_mm / MM_PER_IN)
+        Lf = None
+    elif lf_mode == "Exact":
         if _metric:
             _lf_mm = linked("Free Length (mm)", "opt_lf", 12.0, 508.0,
                             qp("opt_lf_val", 5.60) * MM_PER_IN, 1.0, "%.1f",
@@ -200,6 +235,11 @@ with c_right:
     st.markdown("**Wire Sizes**")
     _inc_imperial = st.checkbox("Include imperial (in)", value=True, key="opt_inc_in")
     _inc_metric = st.checkbox("Include metric (mm)", value=_metric, key="opt_inc_mm")
+    tau_pct_ui = linked("% Tensile Strength", "opt_tau_pct", 10.0, 100.0, qp("tau_pct", 45.0),
+                        1.0, "%.0f", container=c_right,
+                        help="Allowable shear stress as a percentage of Sut. "
+                             "Default 45% is a standard static-load design limit.")
+    tau_pct = tau_pct_ui / 100.0
 
 _wire_sizes = []
 if _inc_imperial:
@@ -220,14 +260,20 @@ _new_qp = {"tgt": target_mode, "blaster": preset,
            "od_mode": od_mode, "lf_mode": lf_mode, "units": unit_system}
 if target_mode == "Target FPS":
     _new_qp.update(fps=f"{target_fps:.0f}", dart=f"{dart_g:.2f}", eff=f"{efficiency * 100:.0f}")
-else:
+elif target_mode == "Target Spring Rate":
     _new_qp["rate"] = f"{target_rate:.2f}"
+_new_qp["tau_pct"] = f"{tau_pct_ui:.0f}"
 if od_mode == "Fixed OD":
     _new_qp["od_fix"] = f"{od_fixed:.3f}"
-else:
+elif od_mode == "OD Range":
     _new_qp.update(od_min=f"{od_min:.3f}", od_max=f"{od_max:.3f}")
+else:
+    _new_qp["id_fix"] = f"{id_fixed:.3f}"
 if lf_mode == "Exact":
     _new_qp["opt_lf_val"] = f"{Lf:.2f}"
+elif lf_mode == "Optimize Energy":
+    _new_qp["lf_min"] = f"{lf_range[0] * MM_PER_IN:.1f}"
+    _new_qp["lf_max"] = f"{lf_range[1] * MM_PER_IN:.1f}"
 
 if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
     st.query_params.update(**_new_qp)
@@ -238,6 +284,10 @@ if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
 
 if comp_from_mm <= comp_to_mm:
     st.error("'Compress From' must be longer than 'Compress To'.")
+    st.stop()
+
+if lf_mode == "Optimize Energy" and lf_range[0] >= lf_range[1]:
+    st.error("'Lf Min' must be less than 'Lf Max'.")
     st.stop()
 
 if lf_mode == "Exact" and Lf < comp_from_mm / MM_PER_IN:
@@ -269,7 +319,8 @@ st.subheader("Results")
 
 with st.spinner("Searching for feasible designs..."):
     candidates, rejects = find_candidates(
-        target_mode="fps" if target_mode == "Target FPS" else "rate",
+        target_mode={"Target FPS": "fps", "Target Spring Rate": "rate",
+                     "Max Spring Rate": "max_rate"}[target_mode],
         target_fps=target_fps,
         target_rate=target_rate,
         efficiency=efficiency,
@@ -277,11 +328,14 @@ with st.spinner("Searching for feasible designs..."):
         comp_from_mm=comp_from_mm,
         comp_to_mm=comp_to_mm,
         margin_mm=margin_mm,
-        od_mode="fixed" if od_mode == "Fixed OD" else "range",
+        od_mode={"Fixed OD": "fixed", "OD Range": "range", "Fixed ID": "fixed_id"}[od_mode],
         od_fixed=od_fixed if od_mode == "Fixed OD" else None,
-        od_min=od_min if od_mode != "Fixed OD" else None,
-        od_max=od_max if od_mode != "Fixed OD" else None,
+        od_min=od_min if od_mode == "OD Range" else None,
+        od_max=od_max if od_mode == "OD Range" else None,
+        id_fixed=id_fixed if od_mode == "Fixed ID" else None,
+        tau_pct=tau_pct,
         Lf=Lf,
+        lf_range=lf_range,
         wire_type=wire_type,
         end_type=end_type,
         wire_sizes=_wire_sizes,
@@ -333,20 +387,30 @@ if _total_rejected > 0:
             if count > 0:
                 st.write(f"- **{count}** {_reject_labels[reason]}")
 
-if n_total > 10 and st.checkbox("Show only Pareto-optimal", value=True,
-                                help="Keep only designs where no other design is better in both "
-                                     "solid-height margin and stress utilization. Removes dominated options."):
-    candidates = pareto_filter(candidates)
+_pareto_help = ("Keep only designs where no other design has both more energy and less stress. "
+                "Removes dominated options.") if lf_range is not None else (
+                "Keep only designs where no other design is better in both "
+                "solid-height margin and stress utilization. Removes dominated options.")
+if n_total > 10 and st.checkbox("Show only Pareto-optimal", value=True, help=_pareto_help):
+    if lf_range is not None:
+        candidates = pareto_filter(candidates, maximize="E_stored_j", minimize="util_at_ct")
+    else:
+        candidates = pareto_filter(candidates)
     st.caption(f"{len(candidates)} of {n_total} candidates (Pareto-optimal) — "
                f"{sum(1 for c in candidates if c['safe_to_solid'])} safe to solid")
 else:
     st.caption(f"{n_total} candidates found — {n_safe} safe to solid")
 
+_energy_mode = lf_range is not None
+
 df = pd.DataFrame([{
     "Wire d": format_wire_d(c["d"]),
     "OD": f'{c["OD"]:.3f}',
+    "ID": f'{c["ID"]:.3f}',
     "Na": f'{c["Na"]:g}',
+    **({"Free Length (mm)": f'{c["Lf"] * MM_PER_IN:.1f}'} if _energy_mode else {}),
     "Rate (lbf/in)": f'{c["k"]:.3f}',
+    "Energy (J)": f'{c["E_stored_j"]:.3f}',
     "Force @ CT (lbf)": f'{c["F_at_ct"]:.2f}',
     "Solid Ht (mm)": f'{c["Hs_mm"]:.1f}',
     "Margin (mm)": f'{c["margin_mm"]:.1f}',

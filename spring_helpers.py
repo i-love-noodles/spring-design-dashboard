@@ -266,7 +266,9 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
                     efficiency=0.50, dart_kg=0.001,
                     comp_from_mm, comp_to_mm, margin_mm=2.0,
                     od_mode="fixed", od_fixed=1.4, od_min=1.0, od_max=2.0,
-                    Lf, wire_type, end_type, wire_sizes=None):
+                    id_fixed=None, tau_pct=0.45,
+                    Lf=None, lf_range=None,
+                    wire_type, end_type, wire_sizes=None):
     """Search wire diameters and OD values for feasible spring designs.
 
     Returns (candidates, reject_reasons) where candidates is a sorted list of
@@ -280,16 +282,20 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
     comp_to_in = comp_to_mm / MM_PER_IN
 
     if od_mode == "fixed":
-        od_values = [od_fixed]
+        _od_precomputed = [od_fixed]
+    elif od_mode == "range":
+        _od_precomputed = list(np.arange(od_min, od_max + 0.005, 0.01))
     else:
-        od_values = list(np.arange(od_min, od_max + 0.005, 0.01))
+        _od_precomputed = None
 
     candidates = []
     rejects = {"spring_index": 0, "solid_too_tall": 0, "overstressed": 0, "na_too_low": 0}
 
     for d in wire_sizes:
         Sut = get_sut(d, wire_type)
-        tau_allow = 0.45 * Sut
+        tau_allow = tau_pct * Sut
+
+        od_values = [id_fixed + 2 * d] if od_mode == "fixed_id" else _od_precomputed
 
         for OD in od_values:
             OD = round(OD, 3)
@@ -303,28 +309,58 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
 
             Kw = (4 * C - 1) / (4 * C - 4) + 0.615 / C
 
-            # Determine required spring rate
-            if target_mode == "fps":
-                v_mps = target_fps / FPS_PER_MPS
-                E_needed = 0.5 * dart_kg * v_mps**2 / efficiency
-                x_from = Lf - comp_from_in
-                x_to = Lf - comp_to_in
-                denom = x_to**2 - x_from**2
-                if denom <= 0:
-                    continue
-                k_target = 2.0 * (E_needed / LBF_IN_TO_J) / denom
+            if target_mode == "max_rate":
+                if lf_range is not None:
+                    lf_lo, lf_hi = lf_range
+                    best_E, best_lf, best_na = -1, None, None
+                    for Lf_try in np.arange(lf_lo, lf_hi + 0.001, 0.020):
+                        x_ct = Lf_try - comp_to_in
+                        if x_ct <= 0:
+                            continue
+                        Na_try = max(1.0, math.ceil(
+                            (Kw * G * d * x_ct / (math.pi * D**2 * tau_allow) - 1e-9) * 4) / 4)
+                        k_try = (G * d**4) / (8 * D**3 * Na_try)
+                        Nt_try = Na_try + _dead
+                        Hs_try = Nt_try * d if _ground else (Nt_try + 1) * d
+                        if Hs_try * MM_PER_IN + margin_mm > comp_to_mm:
+                            continue
+                        x_from = Lf_try - comp_from_in
+                        E_try = 0.5 * k_try * (x_ct**2 - x_from**2)
+                        if E_try > best_E:
+                            best_E, best_lf, best_na = E_try, Lf_try, Na_try
+                    if best_na is None:
+                        continue
+                    Na = best_na
+                    Lf_cand = best_lf
+                else:
+                    x_at_ct = Lf - comp_to_in
+                    if x_at_ct <= 0:
+                        continue
+                    Na_min = Kw * G * d * x_at_ct / (math.pi * D**2 * tau_allow)
+                    Na = max(1.0, math.ceil((Na_min - 1e-9) * 4) / 4)
+                    Lf_cand = Lf
             else:
-                k_target = target_rate
+                if target_mode == "fps":
+                    v_mps = target_fps / FPS_PER_MPS
+                    E_needed = 0.5 * dart_kg * v_mps**2 / efficiency
+                    x_from = Lf - comp_from_in
+                    x_to = Lf - comp_to_in
+                    denom = x_to**2 - x_from**2
+                    if denom <= 0:
+                        continue
+                    k_target = 2.0 * (E_needed / LBF_IN_TO_J) / denom
+                else:
+                    k_target = target_rate
 
-            if k_target <= 0:
-                continue
+                if not k_target or k_target <= 0:
+                    continue
 
-            # Solve for Na, round to 0.25
-            Na_exact = (G * d**4) / (8 * D**3 * k_target)
-            Na = round(Na_exact * 4) / 4
-            if Na < 1.0:
-                rejects["na_too_low"] += 1
-                continue
+                Na_exact = (G * d**4) / (8 * D**3 * k_target)
+                Na = round(Na_exact * 4) / 4
+                if Na < 1.0:
+                    rejects["na_too_low"] += 1
+                    continue
+                Lf_cand = Lf
 
             k_actual = (G * d**4) / (8 * D**3 * Na)
 
@@ -336,26 +372,23 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
                 rejects["solid_too_tall"] += 1
                 continue
 
-            # Stress at compress-to
-            x_at_ct = Lf - comp_to_in
+            x_at_ct = Lf_cand - comp_to_in
             F_at_ct = k_actual * x_at_ct
             tau_at_ct = Kw * (8 * F_at_ct * D) / (math.pi * d**3)
             util_at_ct = tau_at_ct / tau_allow
 
-            if util_at_ct > 1.0:
+            if util_at_ct > 1.0 + 1e-6:
                 rejects["overstressed"] += 1
                 continue
 
-            # Stress at solid
-            x_at_solid = Lf - Hs
+            x_at_solid = Lf_cand - Hs
             F_at_solid = k_actual * x_at_solid
             tau_at_solid = Kw * (8 * F_at_solid * D) / (math.pi * d**3)
             util_at_solid = tau_at_solid / tau_allow
             safe_to_solid = util_at_solid <= 1.0
 
-            # Compute actual FPS
-            x_from = Lf - comp_from_in
-            x_to = Lf - comp_to_in
+            x_from = Lf_cand - comp_from_in
+            x_to = Lf_cand - comp_to_in
             E_stored_in = 0.5 * k_actual * (x_to**2 - x_from**2)
             E_stored_j = E_stored_in * LBF_IN_TO_J
             if dart_kg > 0 and E_stored_j > 0:
@@ -367,27 +400,31 @@ def find_candidates(*, target_mode, target_fps=None, target_rate=None,
             index_score = abs(C - 8.5)
 
             candidates.append(dict(
-                d=d, OD=OD, Na=Na, k=k_actual, Hs_in=Hs, Hs_mm=Hs_mm,
+                d=d, OD=OD, ID=OD - 2 * d, Na=Na, k=k_actual, Hs_in=Hs, Hs_mm=Hs_mm,
                 margin_mm=margin, safe_to_solid=safe_to_solid,
                 util_at_ct=util_at_ct, util_at_solid=util_at_solid,
-                F_at_ct=F_at_ct,
-                fps=fps_actual, Lf=Lf, C=C, Nt=Nt, Kw=Kw,
+                F_at_ct=F_at_ct, E_stored_j=E_stored_j,
+                fps=fps_actual, Lf=Lf_cand, C=C, Nt=Nt, Kw=Kw,
                 index_score=index_score,
             ))
 
-    # Rank: safe-to-solid first, then largest margin, then best spring index
-    candidates.sort(key=lambda c: (not c["safe_to_solid"], -c["margin_mm"], c["index_score"]))
+    if target_mode == "max_rate" and lf_range is not None:
+        candidates.sort(key=lambda c: (not c["safe_to_solid"], -c["E_stored_j"], c["index_score"]))
+    elif target_mode == "max_rate":
+        candidates.sort(key=lambda c: (not c["safe_to_solid"], -c["k"], c["index_score"]))
+    else:
+        candidates.sort(key=lambda c: (not c["safe_to_solid"], -c["margin_mm"], c["index_score"]))
 
     return candidates, rejects
 
 
-def pareto_filter(candidates):
-    """Return only Pareto-optimal candidates on (margin_mm max, util_at_ct min)."""
+def pareto_filter(candidates, maximize="margin_mm", minimize="util_at_ct"):
+    """Return only Pareto-optimal candidates on the given axes."""
     result = []
     for c in candidates:
         dominated = any(
-            o["margin_mm"] >= c["margin_mm"] and o["util_at_ct"] <= c["util_at_ct"]
-            and (o["margin_mm"] > c["margin_mm"] or o["util_at_ct"] < c["util_at_ct"])
+            o[maximize] >= c[maximize] and o[minimize] <= c[minimize]
+            and (o[maximize] > c[maximize] or o[minimize] < c[minimize])
             for o in candidates if o is not c
         )
         if not dominated:

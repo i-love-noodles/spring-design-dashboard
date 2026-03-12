@@ -32,7 +32,7 @@ _metric = unit_system == "Metric"
 
 _prev_unit = st.session_state.get("_prev_unit")
 if _prev_unit is not None and _prev_unit != unit_system:
-    for _uk in ("od", "lf"):
+    for _uk in ("od", "lf", "id"):
         _nk, _sk = f"{_uk}_n", f"{_uk}_s"
         if _nk in st.session_state:
             if _metric:
@@ -84,16 +84,22 @@ if spring_preset != "Custom":
         _sp_d_in = _sp_d_mm / MM_PER_IN
     else:
         _sp_d_in = min(WIRE_SIZES_IN, key=lambda w: abs(w - _sp_d_mm / MM_PER_IN))
+    _sp_id_mm = _sp[3] - 2 * _sp[0]
     if _metric:
         st.session_state["od_n"] = round(_sp[3], 1)
         st.session_state["od_s"] = round(_sp[3], 1)
+        st.session_state["id_n"] = round(_sp_id_mm, 1)
+        st.session_state["id_s"] = round(_sp_id_mm, 1)
         st.session_state["lf_n"] = round(_sp[2], 1)
         st.session_state["lf_s"] = round(_sp[2], 1)
     else:
         _sp_od_in = round(_sp[3] / MM_PER_IN, 4)
+        _sp_id_in = round(_sp_id_mm / MM_PER_IN, 4)
         _sp_lf_in = round(_sp[2] / MM_PER_IN, 4)
         st.session_state["od_n"] = _sp_od_in
         st.session_state["od_s"] = _sp_od_in
+        st.session_state["id_n"] = _sp_id_in
+        st.session_state["id_s"] = _sp_id_in
         st.session_state["lf_n"] = _sp_lf_in
         st.session_state["lf_s"] = _sp_lf_in
     st.session_state["na_n"] = _sp[1]
@@ -114,22 +120,42 @@ st.session_state["_prev_spring_preset"] = spring_preset
 p_left, p_mid, p_right = st.columns(3)
 
 with p_left:
+    _diam_modes = ["OD", "ID"]
+    _dm_def = qp("diam_mode", "OD")
+    _dm_idx = _diam_modes.index(_dm_def) if _dm_def in _diam_modes else 0
+    diam_mode = st.radio("Diameter Input", _diam_modes, index=_dm_idx,
+                         horizontal=True, key="diam_mode")
+    if diam_mode == "OD":
+        if _metric:
+            _od_mm = linked("Outer Diameter (mm)", "od", 5.0, 127.0,
+                             qp("od", 1.40) * MM_PER_IN, 0.1, "%.1f", container=p_left,
+                             help="Outside diameter of the coil.",
+                             preset_key="spring_preset")
+            OD = _od_mm / MM_PER_IN
+        else:
+            OD = linked("Outer Diameter (in)", "od", 0.20, 5.00, qp("od", 1.40), 0.005,
+                        container=p_left,
+                        help="Outside diameter of the coil.",
+                        preset_key="spring_preset")
+    else:
+        if _metric:
+            _id_mm = linked("Inner Diameter (mm)", "id", 3.0, 125.0,
+                             qp("id", 1.20) * MM_PER_IN, 0.1, "%.1f", container=p_left,
+                             help="Inside diameter of the coil.",
+                             preset_key="spring_preset")
+            _id_in = _id_mm / MM_PER_IN
+        else:
+            _id_in = linked("Inner Diameter (in)", "id", 0.10, 5.00, qp("id", 1.20), 0.005,
+                            container=p_left,
+                            help="Inside diameter of the coil.",
+                            preset_key="spring_preset")
     if _metric:
-        _od_mm = linked("Outer Diameter (mm)", "od", 5.0, 127.0,
-                         qp("od", 1.40) * MM_PER_IN, 0.1, "%.1f", container=p_left,
-                         help="Outside diameter of the coil.",
-                         preset_key="spring_preset")
-        OD = _od_mm / MM_PER_IN
         _lf_mm = linked("Free Length (mm)", "lf", 12.0, 508.0,
                          qp("lf", 5.60) * MM_PER_IN, 1.0, "%.1f", container=p_left,
                          help="Length of the spring with no load applied.",
                          preset_key="spring_preset")
         Lf = _lf_mm / MM_PER_IN
     else:
-        OD = linked("Outer Diameter (in)", "od", 0.20, 5.00, qp("od", 1.40), 0.005,
-                    container=p_left,
-                    help="Outside diameter of the coil (not the mean diameter).",
-                    preset_key="spring_preset")
         Lf = linked("Free Length (in)", "lf", 0.50, 20.00, qp("lf", 5.60), 0.05, "%.2f",
                     container=p_left,
                     help="Length of the spring with no load applied.",
@@ -186,11 +212,23 @@ with p_right:
                              label_visibility="collapsed",
                              help="Wire material grade. Affects tensile strength (Sut) and shear modulus (G).")
 
+if diam_mode == "ID":
+    OD = _id_in + 2 * d
+    _od_sync = round(OD * MM_PER_IN, 1) if _metric else round(OD, 4)
+    st.session_state["od_n"] = _od_sync
+    st.session_state["od_s"] = _od_sync
+else:
+    _id_sync = round((OD - 2 * d) * MM_PER_IN, 1) if _metric else round(OD - 2 * d, 4)
+    st.session_state["id_n"] = _id_sync
+    st.session_state["id_s"] = _id_sync
+
 # ── Sync current values back to URL ──
 
 _new_qp = {"od": f"{OD:.3f}", "lf": f"{Lf:.2f}", "mat": wire_type, "d": str(d),
            "na": str(Na), "end": end_type, "preset": spring_preset,
-           "units": unit_system}
+           "units": unit_system, "diam_mode": diam_mode}
+if diam_mode == "ID":
+    _new_qp["id"] = f"{OD - 2 * d:.3f}"
 if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
     st.query_params.update(**_new_qp)
 
