@@ -233,8 +233,10 @@ with c_right:
                             help="'Closed and ground' ends are flat and squared off. "
                                  "'Closed not ground' ends are closed but not machined flat.")
     st.markdown("**Wire Sizes**")
-    _inc_imperial = st.checkbox("Include imperial (in)", value=True, key="opt_inc_in")
-    _inc_metric = st.checkbox("Include metric (mm)", value=_metric, key="opt_inc_mm")
+    _inc_in_def = qp("inc_in", 1) == 1
+    _inc_mm_def = qp("inc_mm", 1 if _metric else 0) == 1
+    _inc_imperial = st.checkbox("Include imperial (in)", value=_inc_in_def, key="opt_inc_in")
+    _inc_metric = st.checkbox("Include metric (mm)", value=_inc_mm_def, key="opt_inc_mm")
     tau_pct_ui = linked("% Tensile Strength", "opt_tau_pct", 10.0, 100.0, qp("tau_pct", 45.0),
                         1.0, "%.0f", container=c_right,
                         help="Allowable shear stress as a percentage of Sut. "
@@ -257,7 +259,9 @@ if not _wire_sizes:
 _new_qp = {"tgt": target_mode, "blaster": preset,
            "cfrom": f"{comp_from_mm:.1f}", "cto": f"{comp_to_mm:.1f}",
            "margin": f"{margin_mm:.1f}", "mat": wire_type, "end": end_type,
-           "od_mode": od_mode, "lf_mode": lf_mode, "units": unit_system}
+           "od_mode": od_mode, "lf_mode": lf_mode, "units": unit_system,
+           "inc_in": "1" if _inc_imperial else "0",
+           "inc_mm": "1" if _inc_metric else "0"}
 if target_mode == "Target FPS":
     _new_qp.update(fps=f"{target_fps:.0f}", dart=f"{dart_g:.2f}", eff=f"{efficiency * 100:.0f}")
 elif target_mode == "Target Spring Rate":
@@ -270,7 +274,7 @@ elif od_mode == "OD Range":
 else:
     _new_qp["id_fix"] = f"{id_fixed:.3f}"
 if lf_mode == "Exact":
-    _new_qp["opt_lf_val"] = f"{Lf:.2f}"
+    _new_qp["opt_lf_val"] = f"{Lf:.4f}"
 elif lf_mode == "Optimize Energy":
     _new_qp["lf_min"] = f"{lf_range[0] * MM_PER_IN:.1f}"
     _new_qp["lf_max"] = f"{lf_range[1] * MM_PER_IN:.1f}"
@@ -454,11 +458,14 @@ choice_idx = st.selectbox(
 sel = candidates[choice_idx]
 from urllib.parse import urlencode
 _analysis_qp = {
-    "od": f"{sel['OD']:.3f}", "lf": f"{sel['Lf']:.2f}", "mat": wire_type,
+    "od": f"{sel['OD']:.4f}", "lf": f"{sel['Lf']:.4f}", "mat": wire_type,
     "d": f"{sel['d']:.6f}", "na": str(sel["Na"]), "end": end_type,
-    "blaster": preset,
+    "blaster": preset, "units": unit_system,
     "comp_from": f"{comp_from_mm:.1f}", "comp_to": f"{comp_to_mm:.1f}",
 }
+if od_mode == "Fixed ID":
+    _analysis_qp["diam_mode"] = "ID"
+    _analysis_qp["id"] = f"{sel['ID']:.4f}"
 if target_mode == "Target FPS":
     _analysis_qp["dart_g"] = f"{dart_g:.2f}"
 analysis_params = urlencode(_analysis_qp)

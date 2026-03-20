@@ -224,7 +224,7 @@ else:
 
 # ── Sync current values back to URL ──
 
-_new_qp = {"od": f"{OD:.3f}", "lf": f"{Lf:.2f}", "mat": wire_type, "d": str(d),
+_new_qp = {"od": f"{OD:.4f}", "lf": f"{Lf:.4f}", "mat": wire_type, "d": str(d),
            "na": str(Na), "end": end_type, "preset": spring_preset,
            "units": unit_system, "diam_mode": diam_mode}
 if diam_mode == "ID":

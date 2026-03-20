@@ -131,6 +131,12 @@ SPRING_PRESETS = {
     "OOD Tuning 2.20 x 140mm":      (2.20, 11.0,  140.0, 24.6, "Closed not ground"),
     "RS21":                         (2.54, 14.0,  254.0, 34.8, "Closed and ground"),
     "RN14":                         (2.54, 12.0,  203.2, 37.084, "Closed and ground"),
+    "McMaster 9637K18":              (2.3114, 23.0, 279.4, 30.988, "Open"),
+    "McMaster 9637K18 cut 8in":      (2.3114, 16.75, 203.2, 30.988, "Open"),
+    "McMaster 9637K12":              (2.921, 23.0, 279.4, 30.9626, "Open"),
+    "McMaster 9637K12 cut 8in":      (2.921, 16.75, 203.2, 30.9626, "Open"),
+    "McMaster 9637K24":              (2.032, 23.0, 279.4, 30.9626, "Open"),
+    "McMaster 9637K24 cut 8in":      (2.032, 16.75, 203.2, 30.9626, "Open"),
 }
 SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
 
