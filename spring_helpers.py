@@ -132,11 +132,14 @@ SPRING_PRESETS = {
     "RS21":                         (2.54, 14.0,  254.0, 34.8, "Closed and ground"),
     "RN14":                         (2.54, 12.0,  203.2, 37.084, "Closed and ground"),
     "McMaster 9637K18":              (2.3114, 23.0, 279.4, 30.988, "Open"),
-    "McMaster 9637K18 cut 8in":      (2.3114, 16.75, 203.2, 30.988, "Open"),
     "McMaster 9637K12":              (2.921, 23.0, 279.4, 30.9626, "Open"),
-    "McMaster 9637K12 cut 8in":      (2.921, 16.75, 203.2, 30.9626, "Open"),
     "McMaster 9637K24":              (2.032, 23.0, 279.4, 30.9626, "Open"),
-    "McMaster 9637K24 cut 8in":      (2.032, 16.75, 203.2, 30.9626, "Open"),
+    "McMaster 9637K25":              (2.032, 24.0, 279.4, 24.5872, "Open"),
+    "McMaster 9637K11":              (2.921, 16.1, 279.4, 37.3126, "Open"),
+    "McMaster 9637K13":              (2.921, 39.0, 279.4, 27.7622, "Open"),
+    "McMaster 9637K14":              (2.667, 27.0, 279.4, 27.7622, "Open"),
+    "McMaster 9637K15":              (2.667, 44.0, 279.4, 24.5872, "Open"),
+    "McMaster 9637K26":              (2.032, 34.0, 279.4, 21.4376, "Open"),
 }
 SPRING_PRESET_NAMES = list(SPRING_PRESETS.keys())
 
@@ -220,8 +223,18 @@ END_TYPE_PARAMS = {
     "Closed not ground":    (2, False, 3.0),
     "Open":                 (0, False, 1.0),
     "One closed, one open": (1, False, 1.5),
+    "One closed ground, one open": (1, False, 1.5),
 }
 END_TYPE_NAMES = list(END_TYPE_PARAMS.keys())
+
+
+def end_type_for_cut_stock(stock_end_type):
+    """Map a stock spring's end type to the modeled type after cutting one end off."""
+    if stock_end_type == "Open":
+        return "Open"
+    if stock_end_type == "Closed and ground":
+        return "One closed ground, one open"
+    return "One closed, one open"
 
 
 # ── Spring physics ──

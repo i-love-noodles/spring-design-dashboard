@@ -9,6 +9,7 @@ from spring_helpers import (
     SPRING_PRESETS, SPRING_PRESET_NAMES,
     END_TYPE_NAMES,
     compute_spring, format_wire_d, linked, qp, best_blaster_for_spring,
+    end_type_for_cut_stock,
 )
 
 st.title("Compression Spring Design Analyzer")
@@ -32,7 +33,7 @@ _metric = unit_system == "Metric"
 
 _prev_unit = st.session_state.get("_prev_unit")
 if _prev_unit is not None and _prev_unit != unit_system:
-    for _uk in ("od", "lf", "id"):
+    for _uk in ("od", "lf", "id", "cut_lf"):
         _nk, _sk = f"{_uk}_n", f"{_uk}_s"
         if _nk in st.session_state:
             if _metric:
@@ -74,6 +75,8 @@ spring_preset = st.selectbox("Spring Preset", SPRING_PRESET_NAMES, index=_preset
                              help="Select a known spring to auto-fill parameters.")
 if _wire_auto_msg:
     st.info(_wire_auto_msg)
+_cut_enabled = False
+_cut_end_type = None
 if spring_preset != "Custom":
     st.caption("Spring presets are hand measured and are meant to be rough approximations, not exact specifications.")
 if spring_preset != "Custom":
@@ -85,29 +88,67 @@ if spring_preset != "Custom":
     else:
         _sp_d_in = min(WIRE_SIZES_IN, key=lambda w: abs(w - _sp_d_mm / MM_PER_IN))
     _sp_id_mm = _sp[3] - 2 * _sp[0]
+    _sp_end = _sp[4]
+
+    _preset_changed = st.session_state.get("_prev_spring_preset") != spring_preset
+    if _preset_changed:
+        for _k in ("cut_lf_n", "cut_lf_s"):
+            st.session_state.pop(_k, None)
+
+    _cut_def = qp("cut", 0) == 1
+    _cut_enabled = st.checkbox("Cut to length", value=_cut_def, key="cut_spring")
+
+    if _cut_enabled:
+        _stock_lf_mm = _sp[2]
+        _stock_lf_in = _stock_lf_mm / MM_PER_IN
+        if _metric:
+            _cut_lf_mm = linked("Cut Free Length (mm)", "cut_lf", 1.0, round(_stock_lf_mm, 1),
+                                qp("cut_lf", _stock_lf_in) * MM_PER_IN, 1.0, "%.1f",
+                                help=f"Stock length: {_stock_lf_mm:.1f} mm")
+        else:
+            _cut_lf_in = linked("Cut Free Length (in)", "cut_lf", 0.05, round(_stock_lf_in, 2),
+                                qp("cut_lf", _stock_lf_in), 0.05, "%.2f",
+                                help=f"Stock length: {_stock_lf_in:.2f} in")
+            _cut_lf_mm = _cut_lf_in * MM_PER_IN
+        _cut_na = _sp[1] * (_cut_lf_mm / _sp[2])
+        _cut_end_type = end_type_for_cut_stock(_sp_end)
+
     if _metric:
         st.session_state["od_n"] = round(_sp[3], 1)
         st.session_state["od_s"] = round(_sp[3], 1)
         st.session_state["id_n"] = round(_sp_id_mm, 1)
         st.session_state["id_s"] = round(_sp_id_mm, 1)
-        st.session_state["lf_n"] = round(_sp[2], 1)
-        st.session_state["lf_s"] = round(_sp[2], 1)
     else:
         _sp_od_in = round(_sp[3] / MM_PER_IN, 4)
         _sp_id_in = round(_sp_id_mm / MM_PER_IN, 4)
-        _sp_lf_in = round(_sp[2] / MM_PER_IN, 4)
         st.session_state["od_n"] = _sp_od_in
         st.session_state["od_s"] = _sp_od_in
         st.session_state["id_n"] = _sp_id_in
         st.session_state["id_s"] = _sp_id_in
-        st.session_state["lf_n"] = _sp_lf_in
-        st.session_state["lf_s"] = _sp_lf_in
-    st.session_state["na_n"] = _sp[1]
-    st.session_state["na_s"] = _sp[1]
-    _sp_end = _sp[4]
 
-    if st.session_state.get("_prev_spring_preset") != spring_preset:
-        _best_bl = best_blaster_for_spring(_sp[2])
+    if _cut_enabled:
+        if _metric:
+            st.session_state["lf_n"] = round(_cut_lf_mm, 1)
+            st.session_state["lf_s"] = round(_cut_lf_mm, 1)
+        else:
+            st.session_state["lf_n"] = round(_cut_lf_mm / MM_PER_IN, 4)
+            st.session_state["lf_s"] = round(_cut_lf_mm / MM_PER_IN, 4)
+        st.session_state["na_n"] = round(_cut_na, 2)
+        st.session_state["na_s"] = round(_cut_na, 2)
+    else:
+        if _metric:
+            st.session_state["lf_n"] = round(_sp[2], 1)
+            st.session_state["lf_s"] = round(_sp[2], 1)
+        else:
+            _sp_lf_in = round(_sp[2] / MM_PER_IN, 4)
+            st.session_state["lf_n"] = _sp_lf_in
+            st.session_state["lf_s"] = _sp_lf_in
+        st.session_state["na_n"] = _sp[1]
+        st.session_state["na_s"] = _sp[1]
+
+    if _preset_changed:
+        _eff_lf_mm = _cut_lf_mm if _cut_enabled else _sp[2]
+        _best_bl = best_blaster_for_spring(_eff_lf_mm)
         st.session_state["analysis_preset"] = _best_bl
         if _best_bl != "Custom":
             _bl_from, _bl_to = BLASTER_PRESETS[_best_bl]
@@ -149,7 +190,13 @@ with p_left:
                             container=p_left,
                             help="Inside diameter of the coil.",
                             preset_key="spring_preset")
-    if _metric:
+    if _cut_enabled:
+        Lf = _cut_lf_mm / MM_PER_IN
+        if _metric:
+            st.markdown(f"**Free Length:** {_cut_lf_mm:.1f} mm ({Lf:.3f} in)")
+        else:
+            st.markdown(f"**Free Length:** {Lf:.2f} in ({_cut_lf_mm:.1f} mm)")
+    elif _metric:
         _lf_mm = linked("Free Length (mm)", "lf", 12.0, 508.0,
                          qp("lf", 5.60) * MM_PER_IN, 1.0, "%.1f", container=p_left,
                          help="Length of the spring with no load applied.",
@@ -188,22 +235,32 @@ with p_mid:
         format_func=format_wire_d, label_visibility="collapsed",
         help="Cross-section diameter of the spring wire.",
     )
-    Na = linked("Number of Active Coils", "na", 1.0, 50.0, qp("na", 10.0), 0.25,
-                "%.2f", container=p_mid,
-                help="Coils that deflect under load. Excludes the closed end coils.",
-                preset_key="spring_preset")
+    if _cut_enabled:
+        Na = _cut_na
+        st.markdown(f"**Active Coils:** {Na:.2f}")
+    else:
+        Na = linked("Number of Active Coils", "na", 1.0, 50.0, qp("na", 10.0), 0.25,
+                    "%.2f", container=p_mid,
+                    help="Coils that deflect under load. Excludes the closed end coils.",
+                    preset_key="spring_preset")
 
 with p_right:
-    if spring_preset != "Custom":
-        _end_def = _sp_end
+    if _cut_enabled:
+        end_type = _cut_end_type
+        st.markdown(f"**End Type:** {end_type}")
+        if _cut_end_type != _sp_end:
+            st.caption(f"Stock: {_sp_end}")
     else:
-        _end_def = st.query_params.get("end", END_TYPE_NAMES[0])
-    _end_idx = END_TYPE_NAMES.index(_end_def) if _end_def in END_TYPE_NAMES else 0
-    st.markdown("**End Type**")
-    end_type = st.selectbox("End Type", END_TYPE_NAMES, index=_end_idx,
-                            label_visibility="collapsed",
-                            help="'Closed and ground' ends are flat and squared off. "
-                                 "'Closed not ground' ends are closed but not machined flat.")
+        if spring_preset != "Custom":
+            _end_def = _sp_end
+        else:
+            _end_def = st.query_params.get("end", END_TYPE_NAMES[0])
+        _end_idx = END_TYPE_NAMES.index(_end_def) if _end_def in END_TYPE_NAMES else 0
+        st.markdown("**End Type**")
+        end_type = st.selectbox("End Type", END_TYPE_NAMES, index=_end_idx,
+                                label_visibility="collapsed",
+                                help="'Closed and ground' ends are flat and squared off. "
+                                     "'Closed not ground' ends are closed but not machined flat.")
 
     _mat_def = st.query_params.get("mat", WIRE_MAT_NAMES[0])
     _mat_idx = WIRE_MAT_NAMES.index(_mat_def) if _mat_def in WIRE_MAT_NAMES else 0
@@ -226,7 +283,10 @@ else:
 
 _new_qp = {"od": f"{OD:.4f}", "lf": f"{Lf:.4f}", "mat": wire_type, "d": str(d),
            "na": str(Na), "end": end_type, "preset": spring_preset,
-           "units": unit_system, "diam_mode": diam_mode}
+           "units": unit_system, "diam_mode": diam_mode,
+           "cut": "1" if _cut_enabled else "0"}
+if _cut_enabled:
+    _new_qp["cut_lf"] = f"{Lf:.4f}"
 if diam_mode == "ID":
     _new_qp["id"] = f"{OD - 2 * d:.3f}"
 if any(st.query_params.get(k) != v for k, v in _new_qp.items()):
