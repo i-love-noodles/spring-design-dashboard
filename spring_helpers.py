@@ -103,6 +103,7 @@ def best_blaster_for_spring(spring_length_mm):
 # format_wire_d() recognises them as imperial and displays with "in" units.
 SPRING_PRESETS = {
     "Custom": None,
+    "SFX0":   (2.7,  9.25,   146.0, 30.7, "Closed and ground"),
     "SFX3":   (2.4,  10.625, 145.5, 30.5, "Closed and ground"),
     "SFX4":   (2.3,  11.0,   144.0, 30.8, "Closed and ground"),
     "SFX5":   (2.3,  12.5,   144,   30.8, "Closed and ground"),

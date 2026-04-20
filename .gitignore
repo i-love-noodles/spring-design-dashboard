@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .streamlit/
+.cursor/
 .env
 venv/
 .venv/
